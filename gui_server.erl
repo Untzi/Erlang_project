@@ -102,22 +102,24 @@ update_pos(Curr_pos,Mov)->
   %hit the upper part
   Xpos = element(1,Curr_pos),
   Ypos = element(2,Curr_pos),
+  Xmov = element(1,Mov),
+  Ymov = element(2,Mov),
   if Ypos =:= ?HEIGHT->
-    DirY = -4;
+    DirY = -1*Ymov;
   true->
     if Ypos =:= 0 ->
-      DirY = 4;
+      DirY = -1*Ymov;
     true->
-      DirY = element(2,Mov)
+      DirY = Ymov
     end
   end,
   if Xpos =:= ?WIDTH->
-    DirX = -4;
+    DirX = -1*Xmov;
     true->
       if Xpos =:= 0 ->
-        DirX = 4;
+        DirX = -1*Xmov;
         true->
-          DirX = element(2,Mov)
+          DirX = Xmov
       end
   end,
-  {Xpos+DirX,Ypos+DirY}.
+  {{Xpos+DirX,Ypos+DirY},{DirX,DirY}}.
