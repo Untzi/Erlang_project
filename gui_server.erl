@@ -16,19 +16,18 @@
 -define(RECEIVE_FOLDER,  "/home/chenb/IdeaProjects/untitled/receive_folder").
 -define(RESOURCE_FOLDER, "/home/chenb/IdeaProjects/untitled/resources_folder").
 
-
 update_ets('$end_of_table') -> ok;
 update_ets(Line) ->
   {PictureName, Owner, Pos, Mov} = Line,
   {NewPos, NewMov} = update_pos(Pos, Mov),
-  ets:delete(data_base, PictureName),
-  ets:insert(data_base, {{PictureName, Owner,NewPos, NewMov}}),
-  update_ets(ets:next(data_base,Line)).
+  NextLine = ets:next(data_base,Line),
+  ets:delete(data_base, Line),
+  ets:insert(data_base, {{PictureName, Owner, NewPos, NewMov}}),
+  update_ets(NextLine).
 
 loop(Frame) ->
-
   show_graphics(Frame),
-  receive after 10 -> ok end,
+  receive after 20 -> ok end,
   update_ets(ets:first(data_base)),
   loop(Frame).
 
@@ -36,12 +35,9 @@ start() ->
   wx:new(),
   Frame = wxFrame:new(wx:null(), -1, "bitmaps",[{size,{?WIDTH,?HEIGHT}}]),
   wxFrame:show(Frame),
-
   ets:new(data_base, [named_table, public, set]), % Any process can read or write to the table and the table is registered under data_base name.
-
   spawn( fun() -> file_scanner(?RECEIVE_FOLDER, ?RESOURCE_FOLDER) end),
   receive after 200 -> ok end,
-
   loop(Frame).
 
 % ------------------------------------------------- %
@@ -55,10 +51,8 @@ file_scanner(RecFolder, ResFolder)->
 iterate_update_move([],[],_) -> ok;
 iterate_update_move([H1|Filenames],[H2|Filenames_Dir], ResFolder)->
   file:copy(H2, ResFolder ++ "/" ++ H1),
-
   insert_picture(ResFolder ++ "/" ++ H1),
   %insert_picture(H1),
-
   file:delete(H2),
   iterate_update_move(Filenames,Filenames_Dir, ResFolder).
 
@@ -85,19 +79,14 @@ insert_picture(PictureName) ->
   {PosX, PosY} = {trunc(?WIDTH * rand:uniform()), trunc(?HEIGHT * rand:uniform())},
   {MovX, MovY} = {random_movement(), random_movement()},
   Owner = set_owner(?NODES),
-  %Picture = #pic_state{picture_name = PictureName, owner_name = Owner, pos = {PosX, PosY}, mov = {MovX, MovY}},
-  Picture = {PictureName, Owner, {PosX, PosY},{MovX, MovY}},
-  % need to send data to dest node.
-
-  %ets:insert(data_base, {Picture, PictureName}).
-  %ets:insert(data_base, {PictureName, Picture}).
+  Picture = {list_to_atom(PictureName), Owner, {PosX, PosY},{MovX, MovY}},
+  % here we need to send data to destenation node.
   ets:insert(data_base, {Picture}).
 
 % ------------------------------------------------- %
 
 show_graphics(Frame) ->
   ClientDC = wxClientDC:new(Frame),
-  %wxDC:clear(ClientDC),%??
   BufferDC = wxBufferedDC:new(ClientDC),
   wxDC:drawBitmap(BufferDC,  wxBitmap:new(?BACKGROUND), {0,0}),
   %wxDC:drawBitmap(BufferDC,  wxBitmap:new(?BACKGROUND,?WIDTH, ?HEIGHT), {0,0}),
@@ -112,9 +101,8 @@ show_graphics(Frame) ->
   wxClientDC:destroy(ClientDC).
 
 show_graphics(Line, BufferDC) ->
-  %io:format("~s~n",[Line]),
   {PictureName, _, Pos, _} = Line,
-  wxDC:drawBitmap(BufferDC,  wxBitmap:new(PictureName), Pos),
+  wxDC:drawBitmap(BufferDC,  wxBitmap:new(atom_to_list(PictureName)), Pos),
   receive after 10 -> ok end,
   NextLine = ets:next(data_base, Line),
   case NextLine of
