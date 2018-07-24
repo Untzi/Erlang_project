@@ -97,3 +97,27 @@ show_graphics(Line, BufferDC)->
     '$end_of_table' -> ok;
     _			          -> show_graphics(NextLine, BufferDC)
   end.
+
+update_pos(Curr_pos,Mov)->
+  %hit the upper part
+  Xpos = element(1,Curr_pos),
+  Ypos = element(2,Curr_pos),
+  if Ypos =:= ?HEIGHT->
+    DirY = -4;
+  true->
+    if Ypos =:= 0 ->
+      DirY = 4;
+    true->
+      DirY = element(2,Mov)
+    end
+  end,
+  if Xpos =:= ?WIDTH->
+    DirX = -4;
+    true->
+      if Xpos =:= 0 ->
+        DirX = 4;
+        true->
+          DirX = element(2,Mov)
+      end
+  end,
+  {Xpos+DirX,Ypos+DirY}.
