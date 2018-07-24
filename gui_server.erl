@@ -7,14 +7,14 @@
 -include_lib("wx/include/wx.hrl").
 -include_lib("defines.hrl").
 
-%-record(pic_state, {picture_name, owner_name, pos, mov}).
-%-define(TIME, 100).
-
 -define(WIDTH, 1920).
 -define(HEIGHT, 950).
+-define(DRAW_TIMEOUT, 10).
 -define(BACKGROUND,      "/home/chenb/IdeaProjects/untitled/background.jpg").
 -define(RECEIVE_FOLDER,  "/home/chenb/IdeaProjects/untitled/receive_folder").
 -define(RESOURCE_FOLDER, "/home/chenb/IdeaProjects/untitled/resources_folder").
+
+timeout(T) -> receive after T -> ok end.
 
 update_ets('$end_of_table') -> ok;
 update_ets(Line) ->
@@ -27,7 +27,7 @@ update_ets(Line) ->
 
 loop(Frame) ->
   show_graphics(Frame),
-  receive after 20 -> ok end,
+  timeout(20),
   update_ets(ets:first(data_base)),
   loop(Frame).
 
@@ -37,7 +37,7 @@ start() ->
   wxFrame:show(Frame),
   ets:new(data_base, [named_table, public, set]), % Any process can read or write to the table and the table is registered under data_base name.
   spawn( fun() -> file_scanner(?RECEIVE_FOLDER, ?RESOURCE_FOLDER) end),
-  receive after 200 -> ok end,
+  timeout(200),
   loop(Frame).
 
 % ------------------------------------------------- %
@@ -46,13 +46,13 @@ file_scanner(RecFolder, ResFolder)->
   {ok, Filenames} = file:list_dir(RecFolder),
   Filenames_Dir = [RecFolder ++ "/" ++ X || X <- Filenames],
   iterate_update_move(Filenames, Filenames_Dir, ResFolder),
-  receive after 500 -> file_scanner(RecFolder, ResFolder) end.
+  timeout(500),
+  file_scanner(RecFolder, ResFolder).
 
 iterate_update_move([],[],_) -> ok;
 iterate_update_move([H1|Filenames],[H2|Filenames_Dir], ResFolder)->
   file:copy(H2, ResFolder ++ "/" ++ H1),
   insert_picture(ResFolder ++ "/" ++ H1),
-  %insert_picture(H1),
   file:delete(H2),
   iterate_update_move(Filenames,Filenames_Dir, ResFolder).
 
@@ -80,7 +80,9 @@ insert_picture(PictureName) ->
   {MovX, MovY} = {random_movement(), random_movement()},
   Owner = set_owner(?NODES),
   Picture = {list_to_atom(PictureName), Owner, {PosX, PosY},{MovX, MovY}},
-  % here we need to send data to destenation node.
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  % here we need to send data to destenation node.%
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   ets:insert(data_base, {Picture}).
 
 % ------------------------------------------------- %
@@ -88,9 +90,10 @@ insert_picture(PictureName) ->
 show_graphics(Frame) ->
   ClientDC = wxClientDC:new(Frame),
   BufferDC = wxBufferedDC:new(ClientDC),
-  wxDC:drawBitmap(BufferDC,  wxBitmap:new(?BACKGROUND), {0,0}),
-  %wxDC:drawBitmap(BufferDC,  wxBitmap:new(?BACKGROUND,?WIDTH, ?HEIGHT), {0,0}),
-  receive after 10 -> ok end,
+  Background = wxBitmap:new(?BACKGROUND),
+  wxDC:drawBitmap(BufferDC, Background, {0,0}),
+  timeout(?DRAW_TIMEOUT),
+  wxBitmap:destroy(Background),
 
   First = ets:first(data_base),
   case First of
@@ -102,8 +105,12 @@ show_graphics(Frame) ->
 
 show_graphics(Line, BufferDC) ->
   {PictureName, _, Pos, _} = Line,
-  wxDC:drawBitmap(BufferDC,  wxBitmap:new(atom_to_list(PictureName)), Pos),
-  receive after 10 -> ok end,
+
+  Image = wxBitmap:new(atom_to_list(PictureName)),
+  wxDC:drawBitmap(BufferDC, Image, Pos),
+  timeout(?DRAW_TIMEOUT),
+  wxBitmap:destroy(Image),
+
   NextLine = ets:next(data_base, Line),
   case NextLine of
     '$end_of_table' -> ok;
@@ -114,21 +121,16 @@ show_graphics(Line, BufferDC) ->
 
 update_pos({Xpos,Ypos},{Xmov,Ymov})->
   %hit the upper part
-  if Ypos >= ?HEIGHT->
-    DirY = -1*Ymov;
-    true->
-      if Ypos =< 0 ->
-        DirY = -1*Ymov;
-        true -> DirY = Ymov
+  if Ypos >= ?HEIGHT -> DirY = -1*Ymov;
+    true ->
+      if Ypos =< 0 -> DirY = -1*Ymov;
+         true      -> DirY = Ymov
       end
   end,
-  if Xpos >= ?WIDTH->
-    DirX = -1*Xmov;
-    true->
-      if Xpos =< 0 ->
-        DirX = -1*Xmov;
-        true->
-          DirX = Xmov
+  if Xpos >= ?WIDTH -> DirX = -1*Xmov;
+    true ->
+      if Xpos =< 0 -> DirX = -1*Xmov;
+         true      -> DirX = Xmov
       end
   end,
   {{Xpos+DirX,Ypos+DirY},{DirX,DirY}}.
