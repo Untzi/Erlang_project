@@ -12,40 +12,37 @@
 
 -define(WIDTH, 960).
 -define(HEIGHT, 720).
--define(RECEIVE_FOLDER, "/home/chenb/IdeaProjects/untitled/receive_folder").
+-define(RECEIVE_FOLDER,  "/home/chenb/IdeaProjects/untitled/receive_folder").
 -define(RESOURCE_FOLDER, "/home/chenb/IdeaProjects/untitled/resources_folder").
 
 
 start() ->
   wx:new(),
-  Frame = wxFrame:new(wx:null(), -1, "bitmaps"),
+  Frame = wxFrame:new(wx:null(), -1, "bitmaps",[{size,{?WIDTH,?HEIGHT}}]),
   wxFrame:show(Frame),
-  ClientDC = wxClientDC:new(Frame),
 
   ets:new(data_base, [named_table, public, set]), % Any process can read or write to the table and the table is registered under data_base name.
 
-  % just for test %
   spawn( fun() -> file_scanner(?RECEIVE_FOLDER, ?RESOURCE_FOLDER) end),
+  receive after 1000 -> ok end,
 
- % insert_picture("dush.png"),
- % insert_picture("sharkL.png"),
- % insert_picture("sharkR.png"),
-  show_graphics(ClientDC).
+  show_graphics(Frame).
 
 % ------------------------------------------------- %
 
 file_scanner(RecFolder, ResFolder)->
   {ok, Filenames} = file:list_dir(RecFolder),
-  Filenames_Dir = [RecFolder ++ "/" ++X || X<- Filenames],
+  Filenames_Dir = [RecFolder ++ "/" ++ X || X <- Filenames],
   iterate_update_move(Filenames, Filenames_Dir, ResFolder),
   receive after 500 -> file_scanner(RecFolder, ResFolder) end.
 
 iterate_update_move([],[],_) -> ok;
 iterate_update_move([H1|Filenames],[H2|Filenames_Dir], ResFolder)->
-  %io:format("~s~n",[H1]),
   file:copy(H2, ResFolder ++ "/" ++ H1),
+
   insert_picture(ResFolder ++ "/" ++ H1),
-  io:format("~s~n",ResFolder ++ "/" ++ H1),
+  %insert_picture(H1),
+
   file:delete(H2),
   iterate_update_move(Filenames,Filenames_Dir, ResFolder).
 
@@ -69,7 +66,6 @@ set_owner(Nodes) ->
   get_node_to_transmit(Nodes, Min, NodesNumOfPictures).
 
 insert_picture(PictureName) ->
-  io:format("~s ~n", PictureName),
   {PosX, PosY} = {trunc(?WIDTH * rand:uniform()), trunc(?HEIGHT * rand:uniform())},
   {MovX, MovY} = {random_movement(), random_movement()},
   Owner = set_owner(?NODES),
@@ -80,23 +76,24 @@ insert_picture(PictureName) ->
 
 % ------------------------------------------------- %
 
-show_graphics(ClientDC) ->
+show_graphics(Frame) ->
   First = ets:first(data_base),
   case First of
     '$end_of_table' -> ok;
-    _ -> wxDC:clear(ClientDC),
-         show_graphics(First, ClientDC)
+    _ ->
+      ClientDC = wxClientDC:new(Frame),
+      BufferDC = wxBufferedDC:new(ClientDC),
+      show_graphics(First, BufferDC),
+      wxBufferedDC:destroy(BufferDC),
+      wxClientDC:destroy(ClientDC)
   end.
 
-show_graphics(Line, ClientDC)->
+show_graphics(Line, BufferDC)->
   {PictureName, _, Pos, _} = Line,
-  io:format("~s ~n", Line),
-
-  wxDC:drawBitmap(ClientDC, wxBitmap:new(PictureName), {10,10}),
+  wxDC:drawBitmap(BufferDC,  wxBitmap:new(PictureName), {10,10}),
   receive after 10 -> ok end,
-
   NextLine = ets:next(data_base, Line),
   case NextLine of
     '$end_of_table' -> ok;
-    _			          -> show_graphics(NextLine, ClientDC)
+    _			          -> show_graphics(NextLine, BufferDC)
   end.
