@@ -5,16 +5,14 @@
 %% API
 -compile(export_all).
 -include_lib("wx/include/wx.hrl").
-%-include_lib("defines.hrl").
+-include_lib("defines.hrl").
 
 -define(NODES,['shch1@127.0.0.1','shch2@127.0.0.1','shch3@127.0.0.1','shch4@127.0.0.1']).
 -define(PICTURE_RADIUS, 50).
 -define(WIDTH, 1920).
 -define(HEIGHT, 950).
 -define(DRAW_TIMEOUT, 10).
--define(BACKGROUND,      "/home/chenb/IdeaProjects/untitled/background.jpg").
--define(RECEIVE_FOLDER,  "/home/chenb/IdeaProjects/untitled/receive_folder").
--define(RESOURCE_FOLDER, "/home/chenb/IdeaProjects/untitled/resources_folder").
+
 
 % ------------------------------------------------- %
 
