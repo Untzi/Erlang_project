@@ -5,6 +5,7 @@ import os
 from clarifai.rest import ClarifaiApp
 from clarifai.rest import Image as clImage
 import thread
+import hashlib
 
 def listen_for_image(path,id):
 	port = 6000
@@ -33,18 +34,24 @@ def client_thread(soc,id,path):
 
 
 def resize_crop_save(img):
-    im = Image.open(img)
-    im = im.resize((100, 100));
-    bigsize = (im.size[0] * 3, im.size[1] * 3)
-    mask = Image.new('L', bigsize, 0)
-    draw = ImageDraw.Draw(mask)
-    draw.ellipse((0, 0) + bigsize, fill=255)
-    mask = mask.resize(im.size, Image.ANTIALIAS)
-    im.putalpha(mask)
-    output = ImageOps.fit(im, mask.size, centering=(0.5, 0.5))
-    output.putalpha(mask)
-    output.save(os.path.splitext(img)[0]+'.png')
-    os.remove(img)
+	hasher = hashlib.md5()
+	with open(img, 'rb') as f:
+		buf = f.read()
+		hasher.update(buf)
+	filehash = hasher.hexdigest()
+	im = Image.open(img)
+	im = im.resize((50, 50));
+	bigsize = (im.size[0] * 3, im.size[1] * 3)
+	mask = Image.new('L', bigsize, 0)
+	draw = ImageDraw.Draw(mask)
+	draw.ellipse((0, 0) + bigsize, fill=255)
+	mask = mask.resize(im.size, Image.ANTIALIAS)
+	im.putalpha(mask)
+	output = ImageOps.fit(im, mask.size, centering=(0.5, 0.5))
+	output.putalpha(mask)
+	output.save(filehash[-50:]+'.png')
+    # output.save(os.path.splitext(img)[0]+'.png')
+	os.remove(img)
 
 def getRate(img):
 	app = ClarifaiApp(api_key = 'b348f6da8d8744aea813cd459dfdf53b')
