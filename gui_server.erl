@@ -20,7 +20,7 @@
 
 start() ->
   wx:new(),
-  Frame = wxFrame:new(wx:null(), -1, "bitmaps",[{size,{?WIDTH,?HEIGHT}}]),
+  Frame = wxFrame:new(wx:null(), -1, "Pictures",[{size,{?WIDTH,?HEIGHT}}]),
   wxFrame:show(Frame),
   ets:new(data_base, [named_table, public, set]), % Any process can read or write to the table and the table is registered under data_base name.
   spawn( fun() -> file_scanner(?RECEIVE_FOLDER, ?RESOURCE_FOLDER) end),
@@ -30,7 +30,8 @@ start() ->
 loop(Frame) ->
   show_graphics(Frame),
   timeout(20),
-  update_ets(ets:first(data_base)),
+  % TODO: etch image is procces that roll him self.
+  % update_ets(ets:first(data_base)),
   loop(Frame).
 
 update_ets('$end_of_table') -> ok;
@@ -45,25 +46,39 @@ update_ets(Picture_Name) ->
 % ------------------------------------------------- %
 
 file_scanner(RecFolder, ResFolder)->
-  {ok, Filenames} = file:list_dir(RecFolder),
-  Filenames_Dir = [RecFolder ++ "/" ++ X || X <- Filenames],
-  iterate_update_move(Filenames, Filenames_Dir, ResFolder),
+  {ok, File_Names} = file:list_dir(RecFolder),
+  File_Names_Dir = [RecFolder ++ "/" ++ X || X <- File_Names],
+  iterate_update_move(File_Names, File_Names_Dir, ResFolder),
   timeout(500),
   file_scanner(RecFolder, ResFolder).
 
-iterate_update_move([],[],_) -> ok;
-iterate_update_move([H1|Filenames],[H2|Filenames_Dir], ResFolder)->
+iterate_update_move([], [], _) -> ok;
+iterate_update_move([H1| File_Names], [H2| File_Names_Dir], ResFolder)->
   file:copy(H2, ResFolder ++ "/" ++ H1),
   insert_picture(ResFolder ++ "/" ++ H1),
   file:delete(H2),
-  iterate_update_move(Filenames,Filenames_Dir, ResFolder).
+  iterate_update_move(File_Names, File_Names_Dir, ResFolder).
 
 % ------------------------------------------------- %
 
-get_distace({Pos_X, Pos_Y}, {Picture_Pos_X, Picture_Pos_Y}) ->
-  math:pow(math:pow(Pos_X - Picture_Pos_X, 2) + math:pow(Pos_Y - Picture_Pos_Y, 2), 0.5).
+picture_process_loop(Picture_Name, Owner, {PosX, PosY},{MovX, MovY}) ->
+  receive
+    
+  end.
 
-timeout(T) -> receive after T -> ok end.
+% ------------------------------------------------- %
+
+insert_picture(Picture_Name) ->
+  {PosX, PosY} = {trunc(?WIDTH * rand:uniform()), trunc(?HEIGHT * rand:uniform())},
+  {MovX, MovY} = {random_movement(), random_movement()},
+  Owner = set_owner(?NODES),
+  Pic_Name_Atom = list_to_atom(Picture_Name),
+  Picture = {Pic_Name_Atom, Owner, {PosX, PosY},{MovX, MovY}},
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  % here we need to send data to destenation node.%
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  ets:insert(data_base, Picture),
+  register(Pic_Name_Atom, spawn_link(fun() -> picture_process_loop(Pic_Name_Atom, Owner, {PosX, PosY},{MovX, MovY}) end)).
 
 random_movement() ->
   R = rand:uniform(),
@@ -81,16 +96,6 @@ set_owner(Nodes) -> ok.
 %  NodesNumOfPictures = [ length(X) || X <- [ ets:lookup(data_base, X) || X <- Nodes]],
 %  Min = lists:min(NodesNumOfPictures),
 %  get_node_to_transmit(Nodes, Min, NodesNumOfPictures).
-
-insert_picture(Picture_Name) ->
-  {PosX, PosY} = {trunc(?WIDTH * rand:uniform()), trunc(?HEIGHT * rand:uniform())},
-  {MovX, MovY} = {random_movement(), random_movement()},
-  Owner = set_owner(?NODES),
-  Picture = {list_to_atom(Picture_Name), Owner, {PosX, PosY},{MovX, MovY}},
-  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  % here we need to send data to destenation node.%
-  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  ets:insert(data_base, Picture).
 
 % ------------------------------------------------- %
 
@@ -141,3 +146,8 @@ update_pos({Pos_X, Pos_Y},{Movment_X, Movment_Y})->
       end
   end,
   {{Pos_X + Direction_X, Pos_Y + Direction_Y}, {Direction_X, Direction_Y}}.
+
+get_distace({Pos_X, Pos_Y}, {Picture_Pos_X, Picture_Pos_Y}) ->
+  math:pow(math:pow(Pos_X - Picture_Pos_X, 2) + math:pow(Pos_Y - Picture_Pos_Y, 2), 0.5).
+
+timeout(T) -> receive after T -> ok end.
