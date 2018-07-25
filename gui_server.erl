@@ -1,4 +1,3 @@
-
 -module(gui_server).
 -author("Chen_Shay").
 
@@ -12,7 +11,7 @@
 -define(WIDTH, 1920).
 -define(HEIGHT, 950).
 -define(DRAW_TIMEOUT, 10).
-
+-define(PIC_PROCESS_TIMEOUT, 100).
 
 % ------------------------------------------------- %
 
@@ -22,30 +21,58 @@ start() ->
   wxFrame:show(Frame),
   ets:new(data_base, [named_table, public, set]), % Any process can read or write to the table and the table is registered under data_base name.
   spawn( fun() -> file_scanner(?RECEIVE_FOLDER, ?RESOURCE_FOLDER) end),
+  register(master, spawn( fun() -> listener() end)),
   timeout(200),
-  loop(Frame).
+  graphics_loop(Frame).
 
-loop(Frame) ->
+graphics_loop(Frame) ->
   show_graphics(Frame),
-  timeout(20),
+  timeout(100),
   % TODO: etch image is procces that roll him self.
   % update_ets(ets:first(data_base)),
-  loop(Frame).
+  graphics_loop(Frame).
 
-update_ets('$end_of_table') -> ok;
-update_ets(Picture_Name) ->
-  [{Name, Owner, Pos, Mov}] = ets:lookup(data_base, Picture_Name),
-  {NewPos, NewMov} = update_pos(Pos, Mov),
-  NextLine = ets:next(data_base,Picture_Name),
-  ets:delete(data_base, Picture_Name),
-  ets:insert(data_base, {Name, Owner, NewPos, NewMov}),
-  update_ets(NextLine).
+picture_process_loop(Picture_Name, Owner, {PosX, PosY},{MovX, MovY}) ->
+  receive
+    _ -> picture_process_loop(Picture_Name, Owner, {PosX, PosY},{MovX, MovY})
+  after ?PIC_PROCESS_TIMEOUT ->
+    {NextPos, Movement} = update_pos({PosX, PosY},{MovX, MovY}),
+    master ! {Picture_Name, NextPos, Movement}, % {Picture_Name, {new PosX, new PosY},{new MovX, new MovY}}
+    picture_process_loop(Picture_Name, Owner, NextPos, Movement)
+  end.
+
+listener() ->
+  receive
+    {Picture_Name, NextPos, Movement} ->
+      [Line] = ets:lookup(data_base, Picture_Name),
+      {_, Owner, _, _} = Line,
+      ets:delete(data_base, Line),
+      ets:insert(data_base,{Picture_Name, Owner, NextPos, Movement})
+  end,
+  listener().
+
+%% TODO: fix that function
+update_pos({Pos_X, Pos_Y},{Movment_X, Movment_Y})->
+  if Pos_Y >= ?HEIGHT -> Direction_Y = -1 * Movment_Y;
+    true ->
+      if Pos_Y =< 0  -> Direction_Y = -1 * Movment_Y;
+        true         -> Direction_Y = Movment_Y
+      end
+  end,
+  if Pos_X >= ?WIDTH  -> Direction_X = -1 * Movment_X;
+    true ->
+      if Pos_X =< 0  -> Direction_X = -1 * Movment_X;
+        true        -> Direction_X = Movment_X
+      end
+  end,
+  {{Pos_X + Direction_X, Pos_Y + Direction_Y}, {Direction_X, Direction_Y}}.
 
 % ------------------------------------------------- %
 
 file_scanner(RecFolder, ResFolder)->
   {ok, File_Names} = file:list_dir(RecFolder),
   File_Names_Dir = [RecFolder ++ "/" ++ X || X <- File_Names],
+
   iterate_update_move(File_Names, File_Names_Dir, ResFolder),
   timeout(500),
   file_scanner(RecFolder, ResFolder).
@@ -59,22 +86,15 @@ iterate_update_move([H1| File_Names], [H2| File_Names_Dir], ResFolder)->
 
 % ------------------------------------------------- %
 
-picture_process_loop(Picture_Name, Owner, {PosX, PosY},{MovX, MovY}) ->
-  receive
-    
-  end.
-
-% ------------------------------------------------- %
-
 insert_picture(Picture_Name) ->
   {PosX, PosY} = {trunc(?WIDTH * rand:uniform()), trunc(?HEIGHT * rand:uniform())},
   {MovX, MovY} = {random_movement(), random_movement()},
   Owner = set_owner(?NODES),
   Pic_Name_Atom = list_to_atom(Picture_Name),
   Picture = {Pic_Name_Atom, Owner, {PosX, PosY},{MovX, MovY}},
-  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  % here we need to send data to destenation node.%
-  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  % TODO: here we need to send data to destenation node.%
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   ets:insert(data_base, Picture),
   register(Pic_Name_Atom, spawn_link(fun() -> picture_process_loop(Pic_Name_Atom, Owner, {PosX, PosY},{MovX, MovY}) end)).
 
@@ -128,24 +148,5 @@ show_graphics(Picture_Name, BufferDC) ->
   end.
 
 % --------------------------------------- %
-
-%% TODO: fix that function
-update_pos({Pos_X, Pos_Y},{Movment_X, Movment_Y})->
-  if Pos_Y >= ?HEIGHT -> Direction_Y = -1 * Movment_Y;
-    true ->
-      if Pos_Y =< 0  -> Direction_Y = -1 * Movment_Y;
-        true         -> Direction_Y = Movment_Y
-      end
-  end,
-  if Pos_X >= ?WIDTH  -> Direction_X = -1 * Movment_X;
-    true ->
-      if Pos_X =< 0  -> Direction_X = -1 * Movment_X;
-        true        -> Direction_X = Movment_X
-      end
-  end,
-  {{Pos_X + Direction_X, Pos_Y + Direction_Y}, {Direction_X, Direction_Y}}.
-
-get_distace({Pos_X, Pos_Y}, {Picture_Pos_X, Picture_Pos_Y}) ->
-  math:pow(math:pow(Pos_X - Picture_Pos_X, 2) + math:pow(Pos_Y - Picture_Pos_Y, 2), 0.5).
 
 timeout(T) -> receive after T -> ok end.
