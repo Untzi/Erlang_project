@@ -7,20 +7,22 @@
 -include_lib("defines.hrl").
 
 -define(NODES,['shch1@127.0.0.1','shch2@127.0.0.1','shch3@127.0.0.1','shch4@127.0.0.1']).
--define(PICTURE_RADIUS, 50).
--define(WIDTH, 1920).
--define(HEIGHT, 950).
+-define(ImgEdge, 50).
+-define(WIDTH, 700).
+-define(HEIGHT, 700).
 -define(DRAW_TIMEOUT, 10).
 -define(PIC_PROCESS_TIMEOUT, 100).
 
 % ------------------------------------------------- %
 
 start() ->
+  file_scanner(?RESOURCE_FOLDER,?RECEIVE_FOLDER,1),
+  timeout(100),
   wx:new(),
   Frame = wxFrame:new(wx:null(), -1, "Pictures",[{size,{?WIDTH,?HEIGHT}}]),
   wxFrame:show(Frame),
   ets:new(data_base, [named_table, public, set]), % Any process can read or write to the table and the table is registered under data_base name.
-  spawn( fun() -> file_scanner(?RECEIVE_FOLDER, ?RESOURCE_FOLDER) end),
+  spawn( fun() -> file_scanner(?RECEIVE_FOLDER, ?RESOURCE_FOLDER,0) end),
   register(master, spawn( fun() -> listener() end)),
   timeout(200),
   graphics_loop(Frame).
@@ -36,7 +38,7 @@ picture_process_loop(Picture_Name, Owner, {PosX, PosY},{MovX, MovY}) ->
   receive
     _ -> picture_process_loop(Picture_Name, Owner, {PosX, PosY},{MovX, MovY})
   after ?PIC_PROCESS_TIMEOUT ->
-    {NextPos, Movement} = update_pos({PosX, PosY},{MovX, MovY}),
+    {NextPos, Movement} = update_pos(Picture_Name,{PosX, PosY},{MovX, MovY}),
     master ! {Picture_Name, NextPos, Movement}, % {Picture_Name, {new PosX, new PosY},{new MovX, new MovY}}
     picture_process_loop(Picture_Name, Owner, NextPos, Movement)
   end.
@@ -46,43 +48,61 @@ listener() ->
     {Picture_Name, NextPos, Movement} ->
       [Line] = ets:lookup(data_base, Picture_Name),
       {_, Owner, _, _} = Line,
-      ets:delete(data_base, Line),
-      ets:insert(data_base,{Picture_Name, Owner, NextPos, Movement})
+        ets:update_element(data_base,Picture_Name,[{3,NextPos},{4,Movement}])
   end,
+
   listener().
 
 %% TODO: fix that function
-update_pos({Pos_X, Pos_Y},{Movment_X, Movment_Y})->
-  if Pos_Y >= ?HEIGHT -> Direction_Y = -1 * Movment_Y;
+update_pos(Picture_Name,{Pos_X, Pos_Y},{Movment_X, Movment_Y})->
+  %%upper bound
+  if Pos_Y  - ?ImgEdge>= ?HEIGHT ->
+    Direction_Y = -1 * Movment_Y;
     true ->
-      if Pos_Y =< 0  -> Direction_Y = -1 * Movment_Y;
-        true         -> Direction_Y = Movment_Y
+      %%lower bound
+      if Pos_Y  - ?ImgEdge =< 0  ->
+        Direction_Y = -1 * Movment_Y;
+        true         ->
+          Direction_Y = Movment_Y
       end
   end,
-  if Pos_X >= ?WIDTH  -> Direction_X = -1 * Movment_X;
+  %%right side
+  if Pos_X +?ImgEdge>= ?WIDTH  ->
+    Direction_X = -1 * Movment_X;
     true ->
-      if Pos_X =< 0  -> Direction_X = -1 * Movment_X;
-        true        -> Direction_X = Movment_X
+      %%left side
+      if Pos_X =< 0  ->
+        Direction_X = -1 * Movment_X;
+        true        ->
+          Direction_X = Movment_X
       end
   end,
   {{Pos_X + Direction_X, Pos_Y + Direction_Y}, {Direction_X, Direction_Y}}.
 
 % ------------------------------------------------- %
 
-file_scanner(RecFolder, ResFolder)->
+file_scanner(RecFolder, ResFolder,Debug)->
   {ok, File_Names} = file:list_dir(RecFolder),
   File_Names_Dir = [RecFolder ++ "/" ++ X || X <- File_Names],
 
-  iterate_update_move(File_Names, File_Names_Dir, ResFolder),
+  iterate_update_move(File_Names, File_Names_Dir, ResFolder,Debug),
   timeout(500),
-  file_scanner(RecFolder, ResFolder).
+  if Debug =:=1->
+    ok;
+    true->
+      file_scanner(RecFolder, ResFolder,Debug)
+  end.
 
-iterate_update_move([], [], _) -> ok;
-iterate_update_move([H1| File_Names], [H2| File_Names_Dir], ResFolder)->
+iterate_update_move([], [], _,_Debug) -> ok;
+iterate_update_move([H1| File_Names], [H2| File_Names_Dir], ResFolder,Debug)->
   file:copy(H2, ResFolder ++ "/" ++ H1),
-  insert_picture(ResFolder ++ "/" ++ H1),
+  if Debug=:=0->
+    insert_picture(ResFolder ++ "/" ++ H1);
+    true->
+      ok
+    end,
   file:delete(H2),
-  iterate_update_move(File_Names, File_Names_Dir, ResFolder).
+  iterate_update_move(File_Names, File_Names_Dir, ResFolder,Debug).
 
 % ------------------------------------------------- %
 
