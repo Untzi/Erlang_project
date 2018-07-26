@@ -8,10 +8,11 @@
 
 -define(NODES,['shch1@127.0.0.1','shch2@127.0.0.1','shch3@127.0.0.1','shch4@127.0.0.1']).
 -define(ImgEdge, 50).
+-define(RADIUS, 25).
 -define(WIDTH, 700).
 -define(HEIGHT, 700).
 -define(DRAW_TIMEOUT, 10).
--define(PIC_PROCESS_TIMEOUT, 100).
+-define(PIC_PROCESS_TIMEOUT, 10).
 
 % ------------------------------------------------- %
 
@@ -30,37 +31,37 @@ start() ->
 graphics_loop(Frame) ->
   show_graphics(Frame),
   timeout(100),
-  % TODO: etch image is procces that roll him self.
-  % update_ets(ets:first(data_base)),
   graphics_loop(Frame).
 
-picture_process_loop(Picture_Name, Owner, {PosX, PosY},{MovX, MovY}) ->
+picture_process_loop(Picture_Name, Owner, {PosX, PosY},{MovX, MovY}, Were_Collision, TimeOut) ->
+  Start_Timer = os:system_time(millisecond),
   receive
-    _ -> picture_process_loop(Picture_Name, Owner, {PosX, PosY},{MovX, MovY})
-  after ?PIC_PROCESS_TIMEOUT ->
-    {NextPos, Movement} = update_pos(Picture_Name,{PosX, PosY},{MovX, MovY}),
-    master ! {Picture_Name, NextPos, Movement}, % {Picture_Name, {new PosX, new PosY},{new MovX, new MovY}}
-    picture_process_loop(Picture_Name, Owner, NextPos, Movement)
+    {collision, NewMov} ->
+      T = os:system_time(millisecond) - Start_Timer,
+      case Were_Collision of
+        true  -> picture_process_loop(Picture_Name, Owner, {PosX, PosY}, {MovX, MovY}, Were_Collision, T);
+        false -> picture_process_loop(Picture_Name, Owner, {PosX, PosY}, NewMov, true, T)
+      end
+
+  after TimeOut ->
+    {NextPos, Movement} = update_pos({PosX, PosY}, {MovX, MovY}),
+    master ! {Picture_Name, NextPos, Movement},
+    picture_process_loop(Picture_Name, Owner, NextPos, Movement, false, ?PIC_PROCESS_TIMEOUT)
   end.
 
 listener() ->
   receive
-    {Picture_Name, NextPos, Movement} ->
-      [Line] = ets:lookup(data_base, Picture_Name),
-      {_, Owner, _, _} = Line,
-        ets:update_element(data_base,Picture_Name,[{3,NextPos},{4,Movement}])
+    {Picture_Name, NextPos, Movement} -> ets:update_element(data_base,Picture_Name,[{3,NextPos},{4,Movement}])
   end,
-
   listener().
 
-%% TODO: fix that function
-update_pos(Picture_Name,{Pos_X, Pos_Y},{Movment_X, Movment_Y})->
+update_pos({Pos_X, Pos_Y}, {Movment_X, Movment_Y})->
   %%upper bound
-  if Pos_Y  - ?ImgEdge>= ?HEIGHT ->
+  if Pos_Y  + ?ImgEdge>= ?HEIGHT ->
     Direction_Y = -1 * Movment_Y;
     true ->
       %%lower bound
-      if Pos_Y  - ?ImgEdge =< 0  ->
+      if Pos_Y  =< 0  ->
         Direction_Y = -1 * Movment_Y;
         true         ->
           Direction_Y = Movment_Y
@@ -79,6 +80,36 @@ update_pos(Picture_Name,{Pos_X, Pos_Y},{Movment_X, Movment_Y})->
   end,
   {{Pos_X + Direction_X, Pos_Y + Direction_Y}, {Direction_X, Direction_Y}}.
 
+collision_detect('$end_of_table') -> ok;
+collision_detect(Picture) ->
+  Next_Picture = ets:next(data_base, Picture),
+  collision_detect(ets:lookup(data_base, Picture), Next_Picture),
+  collision_detect(Next_Picture).
+
+collision_detect(_, '$end_of_table') -> ok;
+collision_detect(Picture_Line, Picture_To_Campre) ->
+  Picture_Line_Campre = ets:lookup(data_base, Picture_To_Campre),
+  {Flag, Mov, MovCmp}= collision_check(Picture_Line, Picture_Line_Campre),
+  case Flag of
+    false -> collision_detect(Picture_Line, ets:next(data_base, Picture_To_Campre));
+    true  ->
+      [{Picture_Name, _, _, _}] = Picture_Line,
+      [{Picture_Name_Cmp, _, _, _}]= Picture_Line_Campre,
+      Picture_Name ! {collision, Mov},
+      Picture_Name_Cmp ! {collision, MovCmp}
+  end.
+
+%% this function work only for circle pictures.
+collision_check(Line1, Line2) ->
+  [{_, _, {X1,Y1}, {MovX1, MovY1}}] = Line1,
+  [{_, _, {X2,Y2}, {MovX2, MovY2}}] = Line2,
+  Flag = ((X1 < X2) and (X2 < X1 + ?ImgEdge) and (Y1 < Y2) and (Y2 < Y1 + ?ImgEdge)) or
+    ((X2 < X1) and (X1 < X2 + ?ImgEdge) and (Y2 < Y1) and (Y1 < Y2 + ?ImgEdge)),
+  case Flag of
+    true  -> {true, {MovX2, MovY2}, {MovX1, MovY1}};
+    false -> {false, false, false}
+  end.
+
 % ------------------------------------------------- %
 
 file_scanner(RecFolder, ResFolder,Debug)->
@@ -87,7 +118,7 @@ file_scanner(RecFolder, ResFolder,Debug)->
 
   iterate_update_move(File_Names, File_Names_Dir, ResFolder,Debug),
   timeout(500),
-  if Debug =:=1->
+  if Debug =:= 1->
     ok;
     true->
       file_scanner(RecFolder, ResFolder,Debug)
@@ -107,7 +138,7 @@ iterate_update_move([H1| File_Names], [H2| File_Names_Dir], ResFolder,Debug)->
 % ------------------------------------------------- %
 
 insert_picture(Picture_Name) ->
-  {PosX, PosY} = {trunc(?WIDTH * rand:uniform()), trunc(?HEIGHT * rand:uniform())},
+  {PosX, PosY} = {trunc(50 + (?WIDTH - 50) * rand:uniform()), trunc(50 + (?HEIGHT - 50) * rand:uniform())},
   {MovX, MovY} = {random_movement(), random_movement()},
   Owner = set_owner(?NODES),
   Pic_Name_Atom = list_to_atom(Picture_Name),
@@ -116,12 +147,12 @@ insert_picture(Picture_Name) ->
   % TODO: here we need to send data to destenation node.%
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   ets:insert(data_base, Picture),
-  register(Pic_Name_Atom, spawn_link(fun() -> picture_process_loop(Pic_Name_Atom, Owner, {PosX, PosY},{MovX, MovY}) end)).
+  register(Pic_Name_Atom, spawn_link(fun() -> picture_process_loop(Pic_Name_Atom, Owner, {PosX, PosY},{MovX, MovY}, false, ?PIC_PROCESS_TIMEOUT) end)).
 
 random_movement() ->
   R = rand:uniform(),
-  if R < 0.5 -> -10;
-    true -> 10
+  if R < 0.5 -> -1;
+    true -> 1
   end .
 
 get_node_to_transmit([HNodes|[]], _, [_|[]]) -> HNodes;
@@ -138,6 +169,7 @@ set_owner(Nodes) -> ok.
 % ------------------------------------------------- %
 
 show_graphics(Frame) ->
+  collision_detect(ets:first(data_base)),
   ClientDC = wxClientDC:new(Frame),
   BufferDC = wxBufferedDC:new(ClientDC),
   Background = wxBitmap:new(?BACKGROUND),
@@ -155,12 +187,10 @@ show_graphics(Frame) ->
 
 show_graphics(Picture_Name, BufferDC) ->
   [{Name, _, Pos, _}] = ets:lookup(data_base, Picture_Name),
-
   Image = wxBitmap:new(atom_to_list(Name)),
   wxDC:drawBitmap(BufferDC, Image, Pos),
   timeout(?DRAW_TIMEOUT),
   wxBitmap:destroy(Image),
-
   NextLine = ets:next(data_base, Picture_Name),
   case NextLine of
     '$end_of_table' -> ok;
