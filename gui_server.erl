@@ -103,8 +103,7 @@ collision_detect(Picture_Line, Picture_To_Campre) ->
 collision_check(Line1, Line2) ->
   [{_, _, {X1,Y1}, {MovX1, MovY1}}] = Line1,
   [{_, _, {X2,Y2}, {MovX2, MovY2}}] = Line2,
-  Flag = ((X1 < X2) and (X2 < X1 + ?ImgEdge) and (Y1 < Y2) and (Y2 < Y1 + ?ImgEdge)) or
-    ((X2 < X1) and (X1 < X2 + ?ImgEdge) and (Y2 < Y1) and (Y1 < Y2 + ?ImgEdge)),
+  Flag = (abs(X1-X2) =< ?ImgEdge) and (abs(Y1-Y2) =< ?ImgEdge),
   case Flag of
     true  -> {true, {MovX2, MovY2}, {MovX1, MovY1}};
     false -> {false, false, false}
