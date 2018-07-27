@@ -11,46 +11,65 @@
 -define(RADIUS, 25).
 -define(WIDTH, 700).
 -define(HEIGHT, 700).
+-define(TTL, 3).
+
 -define(DRAW_TIMEOUT, 10).
+-define(GRAPHICS_LOOP_TIMEOUT, 10).
 -define(PIC_PROCESS_TIMEOUT, 10).
 
 % ------------------------------------------------- %
 
 start() ->
   file_scanner(?RESOURCE_FOLDER,?RECEIVE_FOLDER,1),
-  timeout(100),
   wx:new(),
   Frame = wxFrame:new(wx:null(), -1, "Pictures",[{size,{?WIDTH,?HEIGHT}}]),
   wxFrame:show(Frame),
-  ets:new(data_base, [named_table, public, set]), % Any process can read or write to the table and the table is registered under data_base name.
+  ets:new(data_base, [named_table, public, set]),
   spawn( fun() -> file_scanner(?RECEIVE_FOLDER, ?RESOURCE_FOLDER,0) end),
   register(master, spawn( fun() -> listener() end)),
-  timeout(200),
+  register(graphics_procces, self()),
   graphics_loop(Frame).
 
 graphics_loop(Frame) ->
+  receive
+    {insert_picture, {Pic_Name_Atom, Owner, {PosX, PosY},{MovX, MovY}}} ->
+      ets:insert(data_base, {Pic_Name_Atom, Owner, {PosX, PosY},{MovX, MovY}});
+    {self_kill, Picture_Name} ->
+      ets:delete(data_base, Picture_Name),
+      master ! {kill, Picture_Name}
+  after 0 -> ok
+  end,
+  %timeout(?GRAPHICS_LOOP_TIMEOUT),
   show_graphics(Frame),
-  timeout(100),
   graphics_loop(Frame).
 
-picture_process_loop(Picture_Name, Owner, {PosX, PosY},{MovX, MovY}, Were_Collision, TimeOut) ->
+
+picture_process_loop(Picture_Name, _, _, _, _, _, 0) ->
+  master ! {self_kill, Picture_Name},
+  receive
+    kill -> io:format("bye bye~n")
+    %{Event, Picture} -> Event(Picture, 1000/?PIC_PROCESS_TIMEOUT)
+  end;
+picture_process_loop(Picture_Name, Owner, {PosX, PosY},{MovX, MovY}, Were_Collision, TimeOut, TTL) ->
   Start_Timer = os:system_time(millisecond),
   receive
     {collision, NewMov} ->
-      T = os:system_time(millisecond) - Start_Timer,
+      Time = os:system_time(millisecond) - Start_Timer,
       case Were_Collision of
-        true  -> picture_process_loop(Picture_Name, Owner, {PosX, PosY}, {MovX, MovY}, Were_Collision, T);
-        false -> picture_process_loop(Picture_Name, Owner, {PosX, PosY}, NewMov, true, T)
+        true  -> picture_process_loop(Picture_Name, Owner, {PosX, PosY}, {MovX, MovY}, Were_Collision, Time, TTL);
+        false -> picture_process_loop(Picture_Name, Owner, {PosX, PosY}, NewMov, true, Time, TTL-1)
       end
 
   after TimeOut ->
     {NextPos, Movement} = update_pos({PosX, PosY}, {MovX, MovY}),
     master ! {Picture_Name, NextPos, Movement},
-    picture_process_loop(Picture_Name, Owner, NextPos, Movement, false, ?PIC_PROCESS_TIMEOUT)
+    picture_process_loop(Picture_Name, Owner, NextPos, Movement, false, ?PIC_PROCESS_TIMEOUT, TTL)
   end.
 
 listener() ->
   receive
+    {kill, Picture_Name} -> Picture_Name ! kill;
+    {self_kill, Picture_Name} -> graphics_procces ! {self_kill, Picture_Name};
     {Picture_Name, NextPos, Movement} -> ets:update_element(data_base,Picture_Name,[{3,NextPos},{4,Movement}])
   end,
   listener().
@@ -145,8 +164,10 @@ insert_picture(Picture_Name) ->
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   % TODO: here we need to send data to destenation node.%
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  ets:insert(data_base, Picture),
-  register(Pic_Name_Atom, spawn_link(fun() -> picture_process_loop(Pic_Name_Atom, Owner, {PosX, PosY},{MovX, MovY}, false, ?PIC_PROCESS_TIMEOUT) end)).
+  graphics_procces ! {insert_picture, Picture},
+  %ets:insert(data_base, Picture),
+  Pid = spawn_link(fun() -> picture_process_loop(Pic_Name_Atom, Owner, {PosX, PosY},{MovX, MovY}, false, ?PIC_PROCESS_TIMEOUT, ?TTL) end),
+  register(Pic_Name_Atom, Pid).
 
 random_movement() ->
   R = rand:uniform(),
