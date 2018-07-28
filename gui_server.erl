@@ -11,12 +11,12 @@
 -define(NODES,['shch1@127.0.0.1','shch2@127.0.0.1','shch3@127.0.0.1','shch4@127.0.0.1']).
 -define(ImgEdge, 50).
 -define(RADIUS, 25).
--define(WIDTH, 700).
--define(HEIGHT, 700).
--define(TTL, 10).
+-define(WIDTH, 1500).
+-define(HEIGHT, 800).
+-define(TTL, 15).
 
--define(DRAW_TIMEOUT, 10).
--define(GRAPHICS_LOOP_TIMEOUT, 10).
+-define(DRAW_TIMEOUT, 0).
+-define(GRAPHICS_LOOP_TIMEOUT, 8).
 -define(PIC_PROCESS_TIMEOUT, 10).
 
 timeout(T) -> receive after T -> ok end.
@@ -121,9 +121,15 @@ collision_detect(Picture_Line, Picture_To_Campre) ->
 collision_check(Line1, Line2) ->
   [{_, _, {X1,Y1}, {MovX1, MovY1}}] = Line1,
   [{_, _, {X2,Y2}, {MovX2, MovY2}}] = Line2,
-  Flag = (abs(X1-X2) =< ?ImgEdge) and (abs(Y1-Y2) =< ?ImgEdge),
+  Ydis = abs(Y1-Y2),
+  Xdis = abs(X1-X2),
+  Flag = (Xdis =< ?ImgEdge) and (Ydis =< ?ImgEdge),
   case Flag of
-    true  -> {true, {MovX2, MovY2}, {MovX1, MovY1}};
+    true  ->
+      case (Ydis < Xdis) of
+        true  -> {true, {-1 * MovX1, MovY1}, {-1 * MovX2, MovY2}}; % side collision
+        false -> {true, {MovX1, -1 * MovY1}, {MovX2, -1 * MovY2}}  % horizontal collision
+      end;
     false -> {false, false, false}
   end.
 
@@ -143,11 +149,12 @@ picture_process_loop(Picture_Name, Owner, Pos, _, _, _, 0) ->
 picture_process_loop(Picture_Name, Owner, {PosX, PosY},{MovX, MovY}, Were_Collision, TimeOut, TTL) ->
   Start_Timer = os:system_time(millisecond),
   receive
-    {collision, NewMov} ->
+    {collision, {NewMovX, NewMovY}} ->
+
       Time = os:system_time(millisecond) - Start_Timer,
       case Were_Collision of
         true  -> picture_process_loop(Picture_Name, Owner, {PosX, PosY}, {MovX, MovY}, Were_Collision, Time, TTL);
-        false -> picture_process_loop(Picture_Name, Owner, {PosX, PosY}, NewMov, true, Time, TTL-1)
+        false -> picture_process_loop(Picture_Name, Owner, {PosX + 2 * NewMovX, PosY + 2 * NewMovY}, {NewMovX, NewMovY}, true, Time, TTL-1)
       end
 
   after TimeOut ->
@@ -157,11 +164,11 @@ picture_process_loop(Picture_Name, Owner, {PosX, PosY},{MovX, MovY}, Were_Collis
   end.
 
 update_pos({Pos_X, Pos_Y}, {Movment_X, Movment_Y})->
-  %%upper bound
-  if Pos_Y  + ?ImgEdge>= ?HEIGHT ->
+  %%lower bound
+  if (Pos_Y  + 1.5 * ?ImgEdge) >= ?HEIGHT ->
     Direction_Y = -1 * Movment_Y;
     true ->
-      %%lower bound
+      %%upper bound
       if Pos_Y  =< 0  ->
         Direction_Y = -1 * Movment_Y;
         true         ->
@@ -209,7 +216,7 @@ iterate_update_move([H1| File_Names], [H2| File_Names_Dir], ResFolder,Debug)->
 % ------------------------------------------------- %
 
 insert_picture(Picture_Name) ->
-  {PosX, PosY} = {trunc(50 + (?WIDTH - 50) * rand:uniform()), trunc(50 + (?HEIGHT - 50) * rand:uniform())},
+  {PosX, PosY} = {trunc(?ImgEdge + (?WIDTH - 10*?ImgEdge) * rand:uniform()), trunc(?ImgEdge + (?HEIGHT - 10*?ImgEdge) * rand:uniform())},
   {MovX, MovY} = {random_movement(), random_movement()},
   Owner = set_owner(?NODES),
   Pic_Name_Atom = list_to_atom(Picture_Name),
