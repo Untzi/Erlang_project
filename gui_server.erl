@@ -19,14 +19,18 @@
 -define(GRAPHICS_LOOP_TIMEOUT, 8).
 -define(PIC_PROCESS_TIMEOUT, 10).
 
+-behaviour(gen_server).
+
 timeout(T) -> receive after T -> ok end.
 
 % ------------------------------------------------- %
+start_link()->
+  gen_server:start_link(?MODULE,[],[]).
 
-start() ->
+init(A) ->
   file_scanner(?RESOURCE_FOLDER,?RECEIVE_FOLDER,1),
   wx:new(),
-  Frame = wxFrame:new(wx:null(), -1, "Pictures",[{size,{?WIDTH,?HEIGHT}}]),
+  Frame = wxFrame:new(wx:null(), -1, "Take-A-Pic",[{size,{?WIDTH,?HEIGHT}}]),
   wxFrame:show(Frame),
   ets:new(data_base, [named_table, public, set]),
   ets:new(temporary_data_base, [named_table, public, set]),
