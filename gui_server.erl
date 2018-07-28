@@ -6,14 +6,14 @@
 -include_lib("wx/include/wx.hrl").
 -include_lib("defines.hrl").
 
--define(BOOM, "BOOM.jpg").
+-define(BOOM, "BOOM.png").
 
 -define(NODES,['shch1@127.0.0.1','shch2@127.0.0.1','shch3@127.0.0.1','shch4@127.0.0.1']).
 -define(ImgEdge, 50).
 -define(RADIUS, 25).
 -define(WIDTH, 700).
 -define(HEIGHT, 700).
--define(TTL, 3).
+-define(TTL, 10).
 
 -define(DRAW_TIMEOUT, 10).
 -define(GRAPHICS_LOOP_TIMEOUT, 10).
@@ -131,13 +131,12 @@ collision_check(Line1, Line2) ->
 
 boom_process_loop(TTL) ->
   timeout(TTL),
-  io:format("bye bye 2~n"),
   master ! {kill_temporary, self()}.
 
 picture_process_loop(Picture_Name, Owner, Pos, _, _, _, 0) ->
   master ! {self_kill, Picture_Name},
   receive
-    kill -> io:format("bye bye 1~n"),
+    kill ->
             master ! {self(), ?BOOM, Owner, Pos},
             boom_process_loop(1000)
   end;
