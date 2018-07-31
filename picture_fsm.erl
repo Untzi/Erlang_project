@@ -6,13 +6,11 @@
 -include_lib("defines.hrl").
 
 %% API
--export([start_link/1]). %, collision/3, kill/1]).
+-export([start/1, start_link/1]). %, collision/3, kill/1]).
 
 %% gen_fsm callbacks
 -export([init/1, handle_info/3, handle_event/3, handle_sync_event/4, terminate/3]).
 -export([move/2, collision/2, generate_position/2, random_movement/0, set_position/1]).
-
--define(Delay, 1000).
 
 % ------------------------------------------------ %
 
@@ -20,17 +18,22 @@ start_link({Picture_Name, Owner, Mov_Delay, TTL}) ->
   Data = {Picture_Name, Owner, Mov_Delay, TTL},
   gen_fsm:start_link({global, Picture_Name}, ?MODULE, Data, []).
 
+start({Picture_Name, Owner, Mov_Delay, TTL}) ->
+  Data = {Picture_Name, Owner, Mov_Delay, TTL},
+  gen_fsm:start({global, Picture_Name}, ?MODULE, Data, []).
+
 init({Picture_Name, Owner, Mov_Delay, TTL}) ->
-  Owner ! {insert, Picture_Name, self()},
+  Owner ! {update_pid, Picture_Name, self()},
   Collision = false,
   {MovX, MovY} = {random_movement(), random_movement()},
   StateData = {Picture_Name, Owner, {MovX, MovY}, Collision, Mov_Delay, TTL},
+  io:format("Finished initilize new picture process.~n"),
   {ok, generate_position, StateData, 0}.
 
 generate_position(timeout, StateData) ->
-  {Picture_Name, Owner, _, _, _, _} = StateData,
+  {Picture_Name, Owner, {MovX, MovY}, _, _, _} = StateData,
   {PosX, PosY} = {set_position(?WIDTH), set_position(?HEIGHT)},
-  Owner ! {generate_position, Picture_Name, PosX, PosY},
+  Owner ! {generate_position, Picture_Name, PosX, PosY, MovX, MovY},
   {next_state, generate_position, StateData}.
 
 move(timeout, {Picture_Name, Owner, {PosX, PosY},{MovX, MovY}, _Collision, Mov_Delay, TTL}) ->
@@ -42,17 +45,16 @@ move(timeout, {Picture_Name, Owner, {PosX, PosY},{MovX, MovY}, _Collision, Mov_D
 move(terminate, _State) ->
   {stop, normal, normal}.
 
-collision(timeout, {{NewPosX, NewPosY}, {NewMovX, NewMovY}, {Picture_Name, Owner, {PosX, PosY},{MovX, MovY}, Collision, Mov_Delay, TTL}}) ->
-  Delay = trunc(Mov_Delay/2),
+collision(timeout, {{NewMovX, NewMovY}, {Picture_Name, Owner, Pos, {MovX, MovY}, Collision, Mov_Delay, TTL}}) ->
   case Collision of
-    true  -> {next_state, move, {Picture_Name, Owner, {PosX, PosY},{MovX, MovY}, Collision, Mov_Delay, TTL}, Delay};
+    true  -> {next_state, move, {Picture_Name, Owner, Pos,{MovX, MovY}, Collision, Mov_Delay, TTL}, trunc(Mov_Delay/2)};
     false ->
       case (TTL - 1 =:= 0) of
         true  ->
           Owner ! {self_kill, Picture_Name},
           {stop, normal, normal};
         false ->
-          {next_state, move, {Picture_Name, Owner, {NewPosX, NewPosY},{NewMovX, NewMovY}, true, Mov_Delay, TTL-1}, Delay}
+          {next_state, move, {Picture_Name, Owner, Pos, {NewMovX, NewMovY}, true, Mov_Delay, TTL-1}, 0}
       end
   end.
 
@@ -64,9 +66,13 @@ handle_event(Event, StateName, StateData) ->
   io:format("handle_event, unexpected event: ~p.~n", [Event]),
   {next_state, StateName, StateData}.
 
-handle_info({collision, New_Pos, New_Mov}, _StateName, StateData) ->
+%%%===================================================================
+%%%                 Messages from current node                     %%%
+%%%===================================================================
+
+handle_info({collision, New_Mov}, _StateName, StateData) ->
   io:format("handle_info: collision message.~n"),
-  {next_state, collision, {New_Pos, New_Mov, StateData}, 0};
+  {next_state, collision, {New_Mov, StateData}, 0};
 
 handle_info(kill, _StateName, _StateData) ->
   io:format("handle_info: kill message.~n"),
@@ -74,22 +80,24 @@ handle_info(kill, _StateName, _StateData) ->
 
 handle_info(bad_position, StateName, StateData) ->
   io:format("handle_info: bad_position message.~n"),
-  {Picture_Name, Owner, _, _, _, _} = StateData,
+  {Picture_Name, Owner, {MovX, MovY}, _, _, _} = StateData,
   {PosX, PosY} = {set_position(?WIDTH), set_position(?HEIGHT)},
-  Owner ! {generate_position, Picture_Name, PosX, PosY},
+  Owner ! {generate_position, Picture_Name, PosX, PosY, MovX, MovY},
   {next_state, StateName, StateData};
 
 handle_info({good_position, {PosX, PosY}}, _StateName, StateData) ->
   io:format("handle_info: good_position message.~n"),
   {Picture_Name, Owner, {MovX, MovY}, Collision, Mov_Delay, TTL} = StateData,
-  io:format("------------ Picture '~p' start to move from position (~p, ~p) ------------~n", [Picture_Name, PosX, PosY]),
+  io:format("------------ Picture starts here movement from position (~p, ~p) ------------~n", [PosX, PosY]),
   {next_state, move, {Picture_Name, Owner, {PosX, PosY}, {MovX, MovY}, Collision, Mov_Delay, TTL}, Mov_Delay};
 
 handle_info(Msg, StateName, StateData) ->
   io:format("handle_event, unexpected message (~p).~n", [Msg]),
+  {_, Owner, _, _, Mov_Delay, _} = StateData,
+  Owner ! {print, "handle_event, unexpected message.~n"},
   case StateName of
     move -> {next_state, move     , StateData};
-    _    -> {next_state, StateName, StateData, ?Delay}
+    _    -> {next_state, StateName, StateData, Mov_Delay}
   end.
 
 terminate(_Reason, _StateName, _State) ->
@@ -101,7 +109,7 @@ terminate(_Reason, _StateName, _State) ->
 %%%===================================================================
 
 set_position(Length) ->
-  trunc(?ImgEdge + (Length - 10*?ImgEdge) * rand:uniform()).
+  1 + rand:uniform(Length - 2*?ImgEdge).
 
 random_movement() ->
   R = rand:uniform(),
