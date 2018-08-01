@@ -9,4 +9,5 @@ if __name__=="__main__":
 			buf = f.read()
 			hasher.update(buf)
 		filehash = hasher.hexdigest()
-		os.rename(file_name, filehash[-32:]+'.png')
+		os.rename(file_name, filehash[-32:]+str(ctr)+'.png')
+		ctr+=1
