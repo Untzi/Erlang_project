@@ -118,8 +118,8 @@ set_position(Length) ->
 
 random_movement() ->
   R = rand:uniform(),
-  if R < 0.5 -> -2;
-    true -> 2
+  if R < 0.5 -> -1;
+    true -> 1
   end .
 
 update_pos({Pos_X, Pos_Y}, {Movment_X, Movment_Y})->
