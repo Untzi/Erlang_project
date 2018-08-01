@@ -44,7 +44,10 @@ code_change(_OldVsn, State, _Extra) ->
 
 send_to_picture(Picture_Name, Data) ->
   [{_, PID}] = ets:lookup(data_base, Picture_Name),
-  PID ! Data.
+  case PID of
+    killed -> ok;
+    _      -> PID ! Data
+  end.
 
 %%%===================================================================
 %%%                   Messages from Gui Server                     %%%
@@ -53,7 +56,7 @@ send_to_picture(Picture_Name, Data) ->
 % create new picture process.
 handle_cast({insert, Picture_Name, Delay, TTL}, Gui_Server) ->
   io:format("handle_cast: insert picture event.~n"),
-  ets:insert(data_base, {Picture_Name, empty}),
+  ets:insert(data_base, {Picture_Name, empty_pid}),
   Owner = self(),
   spawn_link(fun() -> picture_fsm:start({Picture_Name, Owner, Delay, TTL}) end),
   {noreply, Gui_Server};
@@ -71,21 +74,22 @@ handle_cast({generate_position, approved, Picture_Name, PosX, PosY}, Gui_Server)
   {noreply, Gui_Server};
 
 % update picture data due to collision event.
-handle_cast({collision, Picture_Name, New_Mov}, Gui_Server) ->
+handle_cast({collision, Picture, NewMov}, Gui_Server) ->
   io:format("handle_cast: ~p event.~n",[collision]),
-  send_to_picture(Picture_Name, {collision, New_Mov}),
+  send_to_picture(Picture, {collision, NewMov}),
   {noreply, Gui_Server};
 
 % terminate picture process.
 handle_cast({kill, Picture_Name}, Gui_Server) ->
   io:format("handle_cast: process ~p event.~n",[self_kill]),
   send_to_picture(Picture_Name, kill),
-  ets:delete(data_base, Picture_Name),
+  %ets:delete(data_base, Picture_Name),
+  ets:update_element(data_base, Picture_Name, {2,killed}),
   {noreply, Gui_Server};
 
 % unknown message handle.
-handle_cast(_Request, Gui_Server) ->
-  io:format("handle_cast~n"),
+handle_cast(Request, Gui_Server) ->
+  io:format("picture_otp_server - handle_cast: unknown message: ~p~n",[Request]),
   {noreply, Gui_Server}.
 
 %%%===================================================================
@@ -110,7 +114,8 @@ handle_info({update_position, Picture_Name, New_Pos, New_Mov}, Gui_Server) ->
 % picture termination.
 handle_info({self_kill, Picture_Name}, Gui_Server) ->
   io:format("handle_info: process ~p was terminate.~n",[self_kill]),
-  ets:delete(data_base, Picture_Name),
+  %ets:delete(data_base, Picture_Name),
+  ets:update_element(data_base, Picture_Name, {2,killed}),
   gen_server:cast({global, Gui_Server}, {self_kill, Picture_Name}),
   {noreply, Gui_Server};
 
@@ -121,5 +126,5 @@ handle_info({print, String}, Gui_Server) ->
 
 % unknown message handle.
 handle_info(Info, State) ->
-  io:format("Unknown message.~nInfo: ~p.~n",[Info]),
+  io:format("picture_otp_server - handle_info: unknown message: ~p~n",[Info]),
   {noreply, State}.

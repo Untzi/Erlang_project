@@ -53,7 +53,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 
 handle_cast({generate_position, Picture_Name, PosX, PosY, MovX, MovY}, Nodes) ->
-  graphics ! {generate_position, Picture_Name, PosX, PosY, MovX, MovY},
+  spawn_monitor(fun() -> generate_position_check(ets:first(data_base), Picture_Name, PosX, PosY, MovX, MovY) end),
+  %%graphics ! {generate_position, Picture_Name, PosX, PosY, MovX, MovY},
   {noreply, Nodes};
 
 handle_cast({update_position, Picture_Name, Pos, Mov}, Nodes) ->
@@ -68,7 +69,8 @@ handle_cast({self_kill, node, _Node}, Nodes) ->
   % TODO: move all thus picture to other node.
   {noreply, Nodes};
 
-handle_cast(_Request, State) ->
+handle_cast(Request, State) ->
+  io:format("gui_otp_server - handle_cast: unknown message: ~p~n",[Request]),
   {noreply, State}.
 
 %%%===================================================================
@@ -84,8 +86,9 @@ handle_info({insert, Picture_Name, Delay, TTL}, Nodes) ->
 handle_info({generate_position, approved, Picture_Name, PosX, PosY, MovX, MovY}, Nodes) ->
   [{_, Node}] = ets:lookup(wait_for_approve_data_base, Picture_Name),
   ets:delete(wait_for_approve_data_base, Picture_Name),
-  gen_server:cast({global, Node}, {generate_position, approved, Picture_Name, PosX, PosY}),
+  io:format("--------------------------------------------------------------insert {~p, ~p} pls~n", [PosX, PosY]),
   graphics ! {insert_picture, {Picture_Name, Node, {PosX, PosY},{MovX, MovY}}},
+  gen_server:cast({global, Node}, {generate_position, approved, Picture_Name, PosX, PosY}),
   {noreply, Nodes};
 
 handle_info({generate_position, reject, Picture}, Nodes) ->
@@ -93,8 +96,13 @@ handle_info({generate_position, reject, Picture}, Nodes) ->
   gen_server:cast({global, Node}, {generate_position, reject, Picture}),
   {noreply, Nodes};
 
+handle_info({collision, Picture, NewMov}, Nodes) ->
+  [{_, Node, _, _, _}] = ets:lookup(data_base, Picture),
+  gen_server:cast({global, Node}, {collision, Picture, NewMov}),
+  {noreply, Nodes};
+
 handle_info(Info, State) ->
-  io:formart("handle_info: unknown message: ~p~n",[Info]),
+  io:format("gui_otp_server - handle_info: unknown message: ~p~n",[Info]),
   {noreply, State}.
 
 %%%===================================================================
@@ -110,46 +118,45 @@ graphics_init() ->
 
 graphics_process(Frame) ->
   receive
-    {generate_position, Picture, PosX, PosY, MovX, MovY} ->
-      io:format("graphics_process: generate_position ~p ~p~n",[PosX, PosY]),
-      generate_position_check(ets:first(data_base), Picture, PosX, PosY, MovX, MovY);
+    {insert_temporary, PID, Type, Owner, Pos} ->
+      ets:insert(temporary_data_base, {PID, Type, Owner, Pos});
 
     {insert_picture, {Picture_Name, Owner, {PosX, PosY},{MovX, MovY}}} ->
       io:format("graphics_process: insert_picture ~p ~p~n",[PosX, PosY]),
-      ets:insert(data_base, {Picture_Name, Owner, {PosX, PosY},{MovX, MovY}});
+      ets:insert(data_base, {Picture_Name, Owner, {PosX, PosY},{MovX, MovY}, true});
 
-    {update_position, {Picture_Name, Pos, Mov}} ->
-      ets:update_element(data_base, Picture_Name, [{3, Pos},{4, Mov}]);
+%%    {generate_position, Picture, PosX, PosY, MovX, MovY} ->
+%%      io:format("graphics_process: generate_position ~p ~p~n",[PosX, PosY]),
+%%      spawn_monitor(fun() -> generate_position_check(ets:first(data_base), Picture, PosX, PosY, MovX, MovY) end);
 
     {self_kill, Picture_Name} ->
       ets:delete(data_base, Picture_Name);
 
-    {insert_temporary, PID, Type, Owner, Pos} ->
-      ets:insert(temporary_data_base, {PID, Type, Owner, Pos});
-
     {kill_temporary, PID} ->
-      ets:delete(temporary_data_base, PID)
-  after
-    0 -> ok
-  end,
+      ets:delete(temporary_data_base, PID);
 
+    {update_position, {Picture_Name, Pos, Mov}} ->
+      ets:update_element(data_base, Picture_Name, [{3, Pos},{4, Mov},{5, true}])
+  after 0 -> ok end,
+
+  %collision_detect(ets:first(data_base)),
   show_graphics(Frame),
+
   graphics_process(Frame).
 
 generate_position_check('$end_of_table', Picture, NewPosX, NewPosY, MovX, MovY)  ->
   gui_server ! {generate_position, approved, Picture, NewPosX, NewPosY, MovX, MovY};
 generate_position_check(Line, Picture, NewPosX, NewPosY, MovX, MovY) ->
-  [{_, _, {PosX, PosY},_}] = ets:lookup(data_base, Line),
+  [{_, _, {PosX, PosY},_, _}] = ets:lookup(data_base, Line),
   case ((abs(PosY - NewPosY) =< ?ImgEdge) and (abs(PosX - NewPosY) =< ?ImgEdge)) of
     true  ->
-      io:format("graphics_process: reject ~p ~p~n",[PosX, PosY]),
       gui_server ! {generate_position, reject, Picture};
     false ->
       generate_position_check(ets:next(data_base, Line), Picture, NewPosX, NewPosY, MovX, MovY)
   end.
 
 show_graphics(Frame) ->
-  %collision_detect(ets:first(data_base)),
+  collision_detect(ets:first(data_base)),
 
   ClientDC = wxClientDC:new(Frame),
   BufferDC = wxBufferedDC:new(ClientDC),
@@ -175,7 +182,7 @@ show_temporary_graphics(Line, BufferDC) ->
 
 show_graphics('$end_of_table', _) -> ok;
 show_graphics(Picture_Name, BufferDC) ->
-  [{Name, _, Pos, _}] = ets:lookup(data_base, Picture_Name),
+  [{Name, _, Pos, _, _}] = ets:lookup(data_base, Picture_Name),
   Image = wxBitmap:new(atom_to_list(Name)),
   wxDC:drawBitmap(BufferDC, Image, Pos),
   receive after ?DRAW_TIMEOUT -> ok end,
@@ -185,8 +192,12 @@ show_graphics(Picture_Name, BufferDC) ->
 collision_detect('$end_of_table') -> ok;
 collision_detect(Picture) ->
   Next_Picture = ets:next(data_base, Picture),
-  collision_detect(ets:lookup(data_base, Picture), Next_Picture),
-  collision_detect(Next_Picture).
+  Line = ets:lookup(data_base, Picture),
+  [{_, _, _, _, Collision_Flag}] = Line,
+  case Collision_Flag of
+      true  -> collision_detect(Line, Next_Picture);
+      false -> collision_detect(Next_Picture)
+  end.
 
 collision_detect(_, '$end_of_table') -> ok;
 collision_detect(Picture_Line, Picture_To_Campre) ->
@@ -195,19 +206,21 @@ collision_detect(Picture_Line, Picture_To_Campre) ->
   case Flag of
     false -> collision_detect(Picture_Line, ets:next(data_base, Picture_To_Campre));
     true  ->
-      [{Picture_Name, _, _, _}] = Picture_Line,
-      [{Picture_Name_Cmp, _, _, _}]= Picture_Line_Campre,
+      [{Picture_Name, _, _, _, _}] = Picture_Line,
+      [{Picture_Name_Cmp, _, _, _, _}]= Picture_Line_Campre,
+      ets:update_element(data_base, Picture_Name, [{5, false}]),
+      ets:update_element(data_base, Picture_Name_Cmp, [{5, false}]),
       gui_server ! {collision, Picture_Name, Mov},
       gui_server ! {collision, Picture_Name_Cmp, MovCmp}
   end.
 
 collision_check(Line1, Line2) ->
-  [{_, _, {X1,Y1}, {MovX1, MovY1}}] = Line1,
-  [{_, _, {X2,Y2}, {MovX2, MovY2}}] = Line2,
+  [{_, _, {X1,Y1}, {MovX1, MovY1}, _}] = Line1,
+  [{_, _, {X2,Y2}, {MovX2, MovY2}, Collision_Flag2}] = Line2,
   Ydis = abs(Y1-Y2),
   Xdis = abs(X1-X2),
   Flag = (Xdis =< ?ImgEdge) and (Ydis =< ?ImgEdge),
-  case Flag of
+  case ((Collision_Flag2 =:= true) and Flag) of
     true  ->
       case (Ydis < Xdis) of
         true  -> {true, {-1 * MovX1, MovY1}, {-1 * MovX2, MovY2}}; % side collision

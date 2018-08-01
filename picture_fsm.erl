@@ -9,7 +9,7 @@
 -export([start/1, start_link/1]). %, collision/3, kill/1]).
 
 %% gen_fsm callbacks
--export([init/1, handle_info/3, handle_event/3, handle_sync_event/4, terminate/3]).
+-export([init/1, handle_info/3, handle_event/3, handle_sync_event/4, terminate/3, code_change/4]).
 -export([move/2, collision/2, generate_position/2, random_movement/0, set_position/1]).
 
 % ------------------------------------------------ %
@@ -47,7 +47,8 @@ move(terminate, _State) ->
 
 collision(timeout, {{NewMovX, NewMovY}, {Picture_Name, Owner, Pos, {MovX, MovY}, Collision, Mov_Delay, TTL}}) ->
   case Collision of
-    true  -> {next_state, move, {Picture_Name, Owner, Pos,{MovX, MovY}, Collision, Mov_Delay, TTL}, trunc(Mov_Delay/2)};
+    true  ->
+      {next_state, move, {Picture_Name, Owner, Pos,{MovX, MovY}, Collision, Mov_Delay, TTL}, trunc(Mov_Delay/2)};
     false ->
       case (TTL - 1 =:= 0) of
         true  ->
@@ -65,6 +66,10 @@ handle_sync_event(Event, From, StateName, StateData) ->
 handle_event(Event, StateName, StateData) ->
   io:format("handle_event, unexpected event: ~p.~n", [Event]),
   {next_state, StateName, StateData}.
+
+code_change(_OldVsn, StateName, StateData, _Extra) ->
+  io:format("picture_fsm not support code changing.~n"),
+  {ok, StateName, StateData}.
 
 %%%===================================================================
 %%%                 Messages from current node                     %%%
@@ -113,8 +118,8 @@ set_position(Length) ->
 
 random_movement() ->
   R = rand:uniform(),
-  if R < 0.5 -> -1;
-    true -> 1
+  if R < 0.5 -> -2;
+    true -> 2
   end .
 
 update_pos({Pos_X, Pos_Y}, {Movment_X, Movment_Y})->
