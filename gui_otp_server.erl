@@ -117,17 +117,19 @@ graphics_init() ->
   graphics_process(Frame).
 
 graphics_process(Frame) ->
+  graphics_read_messages(10),
+  show_graphics(Frame),
+  graphics_process(Frame).
+
+graphics_read_messages(0) -> ok;
+graphics_read_messages(N) ->
   receive
     {insert_temporary, PID, Type, Owner, Pos} ->
       ets:insert(temporary_data_base, {PID, Type, Owner, Pos});
 
-    {insert_picture, {Picture_Name, Owner, {PosX, PosY},{MovX, MovY}}} ->
-      io:format("graphics_process: insert_picture ~p ~p~n",[PosX, PosY]),
-      ets:insert(data_base, {Picture_Name, Owner, {PosX, PosY},{MovX, MovY}, true});
-
-%%    {generate_position, Picture, PosX, PosY, MovX, MovY} ->
-%%      io:format("graphics_process: generate_position ~p ~p~n",[PosX, PosY]),
-%%      spawn_monitor(fun() -> generate_position_check(ets:first(data_base), Picture, PosX, PosY, MovX, MovY) end);
+    {insert_picture, {Picture_Name, Owner, {PosX, PosY}, {MovX, MovY}}} ->
+      io:format("graphics_process: insert_picture ~p ~p~n", [PosX, PosY]),
+      ets:insert(data_base, {Picture_Name, Owner, {PosX, PosY}, {MovX, MovY}, true});
 
     {self_kill, Picture_Name} ->
       ets:delete(data_base, Picture_Name);
@@ -136,13 +138,9 @@ graphics_process(Frame) ->
       ets:delete(temporary_data_base, PID);
 
     {update_position, {Picture_Name, Pos, Mov}} ->
-      ets:update_element(data_base, Picture_Name, [{3, Pos},{4, Mov},{5, true}])
+      ets:update_element(data_base, Picture_Name, [{3, Pos}, {4, Mov}, {5, true}])
   after 0 -> ok end,
-
-  %collision_detect(ets:first(data_base)),
-  show_graphics(Frame),
-
-  graphics_process(Frame).
+  graphics_read_messages(N - 1).
 
 generate_position_check('$end_of_table', Picture, NewPosX, NewPosY, MovX, MovY)  ->
   gui_server ! {generate_position, approved, Picture, NewPosX, NewPosY, MovX, MovY};
@@ -162,12 +160,9 @@ show_graphics(Frame) ->
   BufferDC = wxBufferedDC:new(ClientDC),
   Background = wxBitmap:new(?BACKGROUND),
   wxDC:drawBitmap(BufferDC, Background, {0,0}),
-
   wxBitmap:destroy(Background),
   show_graphics(ets:first(data_base), BufferDC),
-
   %show_temporary_graphics(ets:first(temporary_data_base), BufferDC),
-
   wxBufferedDC:destroy(BufferDC),
   wxClientDC:destroy(ClientDC).
 
@@ -226,7 +221,8 @@ collision_check(Line1, Line2) ->
         true  -> {true, {-1 * MovX1, MovY1}, {-1 * MovX2, MovY2}}; % side collision
         false -> {true, {MovX1, -1 * MovY1}, {MovX2, -1 * MovY2}}  % horizontal collision
       end;
-    false -> {false, false, false}
+    false ->
+      {false, false, false}
   end.
 
 % ------------------------------------------------- %
