@@ -75,7 +75,7 @@ handle_cast({generate_position, approved, Picture_Name, PosX, PosY}, Gui_Server)
 
 % update picture data due to collision event.
 handle_cast({collision, Picture, NewMov}, Gui_Server) ->
-  io:format("handle_cast: ~p event.~n",[collision]),
+  io:format("handle_cast: collision message arived to node.~n"),
   send_to_picture(Picture, {collision, NewMov}),
   {noreply, Gui_Server};
 

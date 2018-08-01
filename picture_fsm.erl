@@ -48,7 +48,7 @@ move(terminate, _State) ->
 collision(timeout, {{NewMovX, NewMovY}, {Picture_Name, Owner, Pos, {MovX, MovY}, Collision, Mov_Delay, TTL}}) ->
   case Collision of
     true  ->
-      {next_state, move, {Picture_Name, Owner, Pos,{MovX, MovY}, Collision, Mov_Delay, TTL}, trunc(Mov_Delay/2)};
+      {next_state, move, {Picture_Name, Owner, Pos,{MovX, MovY}, Collision, Mov_Delay, TTL}, Mov_Delay};
     false ->
       case (TTL - 1 =:= 0) of
         true  ->
@@ -76,7 +76,7 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%%===================================================================
 
 handle_info({collision, New_Mov}, _StateName, StateData) ->
-  io:format("handle_info: collision message.~n"),
+  io:format("handle_info: collision message arived to picture.~n"),
   {next_state, collision, {New_Mov, StateData}, 0};
 
 handle_info(kill, _StateName, _StateData) ->

@@ -14,7 +14,9 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
-get_owner(Nodes) -> Nodes.
+get_owner(Nodes) ->
+  [Node | Other_Nodes] = Nodes,
+  {Node, Other_Nodes ++ [Node]}.
 
 start_link(Gui_Server, Nodes) ->
   My_Name = {global, Gui_Server},
@@ -53,8 +55,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 
 handle_cast({generate_position, Picture_Name, PosX, PosY, MovX, MovY}, Nodes) ->
-  spawn_monitor(fun() -> generate_position_check(ets:first(data_base), Picture_Name, PosX, PosY, MovX, MovY) end),
-  %%graphics ! {generate_position, Picture_Name, PosX, PosY, MovX, MovY},
+  graphics ! {generate_position, Picture_Name, PosX, PosY, MovX, MovY},
   {noreply, Nodes};
 
 handle_cast({update_position, Picture_Name, Pos, Mov}, Nodes) ->
@@ -66,7 +67,7 @@ handle_cast({self_kill, Picture_Name}, Nodes) ->
   {noreply, Nodes};
 
 handle_cast({self_kill, node, _Node}, Nodes) ->
-  % TODO: move all thus picture to other node.
+  %TODO
   {noreply, Nodes};
 
 handle_cast(Request, State) ->
@@ -78,17 +79,15 @@ handle_cast(Request, State) ->
 %%%===================================================================
 
 handle_info({insert, Picture_Name, Delay, TTL}, Nodes) ->
-  Node = get_owner(Nodes),
+  {Node, New_Nodes_State} = get_owner(Nodes),
   ets:insert(wait_for_approve_data_base, {Picture_Name, Node}),
   gen_server:cast({global, Node}, {insert, Picture_Name, Delay, TTL}),
-  {noreply, Nodes};
+  {noreply, New_Nodes_State};
 
 handle_info({generate_position, approved, Picture_Name, PosX, PosY, MovX, MovY}, Nodes) ->
   [{_, Node}] = ets:lookup(wait_for_approve_data_base, Picture_Name),
   ets:delete(wait_for_approve_data_base, Picture_Name),
-  io:format("--------------------------------------------------------------insert {~p, ~p} pls~n", [PosX, PosY]),
   graphics ! {insert_picture, {Picture_Name, Node, {PosX, PosY},{MovX, MovY}}},
-  gen_server:cast({global, Node}, {generate_position, approved, Picture_Name, PosX, PosY}),
   {noreply, Nodes};
 
 handle_info({generate_position, reject, Picture}, Nodes) ->
@@ -117,28 +116,34 @@ graphics_init() ->
   graphics_process(Frame).
 
 graphics_process(Frame) ->
-  graphics_read_messages(10),
+  graphics_read_messages(20),
+  receive
+    {update_position, {Picture_Name, Pos, Mov}} ->
+      ets:update_element(data_base, Picture_Name, [{3, Pos}, {4, Mov}, {5, true}])
+  after 0 -> ok end,
   show_graphics(Frame),
   graphics_process(Frame).
 
 graphics_read_messages(0) -> ok;
 graphics_read_messages(N) ->
   receive
+    {generate_position, Picture_Name, PosX, PosY, MovX, MovY} ->
+      generate_position_check(ets:first(data_base), Picture_Name, PosX, PosY, MovX, MovY);
+
     {insert_temporary, PID, Type, Owner, Pos} ->
       ets:insert(temporary_data_base, {PID, Type, Owner, Pos});
 
     {insert_picture, {Picture_Name, Owner, {PosX, PosY}, {MovX, MovY}}} ->
-      io:format("graphics_process: insert_picture ~p ~p~n", [PosX, PosY]),
-      ets:insert(data_base, {Picture_Name, Owner, {PosX, PosY}, {MovX, MovY}, true});
+      io:format("Picture insert at position {~p, ~p}.~n", [PosX, PosY]),
+      ets:insert(data_base, {Picture_Name, Owner, {PosX, PosY}, {MovX, MovY}, true}),
+      gen_server:cast({global, Owner}, {generate_position, approved, Picture_Name, PosX, PosY});
 
     {self_kill, Picture_Name} ->
       ets:delete(data_base, Picture_Name);
 
     {kill_temporary, PID} ->
-      ets:delete(temporary_data_base, PID);
+      ets:delete(temporary_data_base, PID)
 
-    {update_position, {Picture_Name, Pos, Mov}} ->
-      ets:update_element(data_base, Picture_Name, [{3, Pos}, {4, Mov}, {5, true}])
   after 0 -> ok end,
   graphics_read_messages(N - 1).
 
@@ -217,6 +222,7 @@ collision_check(Line1, Line2) ->
   Flag = (Xdis =< ?ImgEdge) and (Ydis =< ?ImgEdge),
   case ((Collision_Flag2 =:= true) and Flag) of
     true  ->
+      io:format("server colision~n"),
       case (Ydis < Xdis) of
         true  -> {true, {-1 * MovX1, MovY1}, {-1 * MovX2, MovY2}}; % side collision
         false -> {true, {MovX1, -1 * MovY1}, {MovX2, -1 * MovY2}}  % horizontal collision
