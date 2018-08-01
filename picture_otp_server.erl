@@ -58,25 +58,7 @@ handle_cast({insert, Picture_Name, Delay, TTL}, Gui_Server) ->
   io:format("handle_cast: insert picture event.~n"),
   ets:insert(data_base, {Picture_Name, empty_pid}),
   Owner = self(),
-  spawn_link(fun() -> picture_fsm:start({Picture_Name, Owner, Delay, TTL}) end),
-  {noreply, Gui_Server};
-
-% picture position has been approved.
-handle_cast({generate_position, reject, Picture_Name}, Gui_Server) ->
-  io:format("handle_cast: picture position rejectd.~n"),
-  send_to_picture(Picture_Name, bad_position),
-  {noreply, Gui_Server};
-
-% picture position rejected.
-handle_cast({generate_position, approved, Picture_Name, PosX, PosY}, Gui_Server) ->
-  io:format("handle_cast: picture position has been approved.~n"),
-  send_to_picture(Picture_Name, {good_position, {PosX, PosY}}),
-  {noreply, Gui_Server};
-
-% update picture data due to collision event.
-handle_cast({collision, Picture, NewMov}, Gui_Server) ->
-  io:format("handle_cast: collision message arived to node.~n"),
-  send_to_picture(Picture, {collision, NewMov}),
+  spawn(fun() -> picture_fsm:start({Picture_Name, Owner, Delay, TTL}) end),
   {noreply, Gui_Server};
 
 % terminate picture process.
@@ -100,28 +82,12 @@ handle_info({update_pid, Picture_Name, PID}, Gui_Server) ->
   ets:update_element(data_base, Picture_Name, {2, PID}),
   {noreply, Gui_Server};
 
-% set picture start position.
-handle_info({generate_position, Picture_Name, PosX, PosY, MovX, MovY}, Gui_Server) ->
-  io:format("handle_info: process try to set his pictures position.~n"),
-  gen_server:cast({global, Gui_Server}, {generate_position, Picture_Name, PosX, PosY, MovX, MovY}),
-  {noreply, Gui_Server};
-
-% received position update from process and sends it to gui_server.
-handle_info({update_position, Picture_Name, New_Pos, New_Mov}, Gui_Server) ->
-  gen_server:cast({global, Gui_Server}, {update_position, Picture_Name, New_Pos, New_Mov}),
-  {noreply, Gui_Server};
-
 % picture termination.
 handle_info({self_kill, Picture_Name}, Gui_Server) ->
   io:format("handle_info: process ~p was terminate.~n",[self_kill]),
   %ets:delete(data_base, Picture_Name),
   ets:update_element(data_base, Picture_Name, {2,killed}),
   gen_server:cast({global, Gui_Server}, {self_kill, Picture_Name}),
-  {noreply, Gui_Server};
-
-% print message from process.
-handle_info({print, String}, Gui_Server) ->
-  io:format(String),
   {noreply, Gui_Server};
 
 % unknown message handle.
