@@ -63,7 +63,7 @@ handle_cast({self_kill, Picture_Name}, Nodes) ->
   {noreply, Nodes};
 
 handle_cast({self_kill, node, _Node}, Nodes) ->
-  %TODO
+  %TODO - node terminate
   {noreply, Nodes};
 
 handle_cast(Request, State) ->
@@ -90,8 +90,8 @@ handle_info(Info, State) ->
 
 random_movement() ->
   R = rand:uniform(),
-  if R < 0.5 -> -2;
-    true -> 2
+  if R < 0.5 -> -1 * ?STEP;
+    true -> ?STEP
   end .
 
 generate_position_check('$end_of_table', Picture_Name, PosX, PosY)  ->
@@ -123,18 +123,26 @@ graphics_update_messages(0) -> 0;
 graphics_update_messages(N) ->
   receive
     {update_position, Picture_Name, Pos, Mov} ->
-      ets:update_element(data_base, Picture_Name, [{3, Pos}, {4, Mov}])
+      try
+        ets:update_element(data_base, Picture_Name, [{3, Pos}, {4, Mov}])
+      catch
+        _-> io:format("caught!~n")
+      end
   after 0 -> ok end,
   graphics_update_messages(N-1).
 
 graphics_message()  ->
   receive
-    {generate_position, Picture_Name, PosX, PosY} ->
-      generate_position_check(ets:first(data_base), Picture_Name, PosX, PosY),
+    {self_kill, Picture_Name} ->
+      ets:delete(data_base, Picture_Name),
       graphics_message();
 
-    {insert_temporary, PID, Type, Owner, Pos} ->
-      ets:insert(temporary_data_base, {PID, Type, Owner, Pos}),
+    {kill_temporary, Pos, PictureType} ->
+      ets:delete(temporary_data_base, Pos),
+      graphics_message();
+
+    {generate_position, Picture_Name, PosX, PosY} ->
+      generate_position_check(ets:first(data_base), Picture_Name, PosX, PosY),
       graphics_message();
 
     {insert_picture, {Picture_Name, Owner, {PosX, PosY}, {MovX, MovY}}} ->
@@ -143,19 +151,21 @@ graphics_message()  ->
       gen_server:cast({global, Owner}, {generate_position, approved, Picture_Name, PosX, PosY}),
       graphics_message();
 
-    {self_kill, Picture_Name} ->
-      ets:delete(data_base, Picture_Name),
-      graphics_message();
-
-    {kill_temporary, PID} ->
-      ets:delete(temporary_data_base, PID),
+    {insert_temporary, Pos, PictureType} ->
+      ets:insert(temporary_data_base, {Pos, PictureType}),
       graphics_message()
+
   after 0 -> ok end.
 
 graphics_process(Frame) ->
   graphics_message(),
-  graphics_update_messages(10),
+  graphics_update_messages(50),
   collision_detect(ets:first(data_base)),
+  %ClientDC = wxClientDC:new(Frame),
+  %BufferDC = wxBufferedDC:new(ClientDC),
+  %show_temporary_graphics(ets:first(temporary_data_base), BufferDC),
+  %wxBufferedDC:destroy(BufferDC),
+  %wxClientDC:destroy(ClientDC),
   show_graphics(Frame),
   graphics_process(Frame).
 
@@ -165,8 +175,8 @@ show_graphics(Frame) ->
   Background = wxBitmap:new(?BACKGROUND),
   wxDC:drawBitmap(BufferDC, Background, {0,0}),
   wxBitmap:destroy(Background),
+  show_temporary_graphics(ets:first(temporary_data_base), BufferDC),
   show_graphics(ets:first(data_base), BufferDC),
-  %show_temporary_graphics(ets:first(temporary_data_base), BufferDC),
   wxBufferedDC:destroy(BufferDC),
   wxClientDC:destroy(ClientDC).
 
@@ -175,18 +185,16 @@ show_graphics(Picture_Name, BufferDC) ->
   [{Name, _, Pos, _}] = ets:lookup(data_base, Picture_Name),
   Image = wxBitmap:new(atom_to_list(Name)),
   wxDC:drawBitmap(BufferDC, Image, Pos),
-  %receive after ?DRAW_TIMEOUT -> ok end,
   wxBitmap:destroy(Image),
   show_graphics(ets:next(data_base, Picture_Name), BufferDC).
 
 show_temporary_graphics('$end_of_table', _) -> ok;
-show_temporary_graphics(Line, BufferDC) ->
-  [{_, Type, _, Pos}] = ets:lookup(temporary_data_base, Line),
+show_temporary_graphics(Key, BufferDC) ->
+  [{Pos, Type}] = ets:lookup(temporary_data_base, Key),
   Image = wxBitmap:new(Type),
   wxDC:drawBitmap(BufferDC, Image, Pos),
-  %receive after ?DRAW_TIMEOUT -> ok end,
   wxBitmap:destroy(Image),
-  show_temporary_graphics(ets:next(temporary_data_base, Line), BufferDC).
+  show_temporary_graphics(ets:next(temporary_data_base, Key), BufferDC).
 
 % ------------------------------------------------- %
 
@@ -267,3 +275,4 @@ iterate_update_move([H1 | File_Names], [H2 | File_Names_Dir], Resources_Folder, 
 insert_picture(Picture_Name) ->
   Picture_Atom = list_to_atom(Picture_Name),
   gui_server ! {insert, Picture_Atom, ?PIC_PROCESS_DELAY, ?TTL}.
+
