@@ -62,12 +62,12 @@ handle_cast({insert, Picture_Name, Delay, TTL}, Gui_Server) ->
   {noreply, Gui_Server};
 
 % terminate picture process.
-handle_cast({kill, Picture_Name}, Gui_Server) ->
-  io:format("handle_cast: process ~p event.~n",[self_kill]),
-  send_to_picture(Picture_Name, kill),
-  %ets:delete(data_base, Picture_Name),
-  ets:update_element(data_base, Picture_Name, {2,killed}),
-  {noreply, Gui_Server};
+%%handle_cast({kill, Picture_Name}, Gui_Server) ->
+%%  io:format("handle_cast: process ~p event.~n",[self_kill]),
+%%  send_to_picture(Picture_Name, kill),
+%%  %ets:delete(data_base, Picture_Name),
+%%  ets:update_element(data_base, Picture_Name, {2,killed}),
+%%  {noreply, Gui_Server};
 
 % unknown message handle.
 handle_cast(Request, Gui_Server) ->
@@ -85,7 +85,7 @@ handle_info({update_pid, Picture_Name, PID}, Gui_Server) ->
 % picture termination.
 handle_info({self_kill, Picture_Name}, Gui_Server) ->
   io:format("handle_info: process self_kill was terminate.~n"),
-  ets:update_element(data_base, Picture_Name, {2,killed}),
+  ets:delete(data_base, Picture_Name),
   gen_server:cast({global, gui_server}, {self_kill, Picture_Name}),
   {noreply, Gui_Server};
 
