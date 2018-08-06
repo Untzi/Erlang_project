@@ -70,11 +70,13 @@ collision(timeout, {{NewMovX, NewMovY}, {Picture_Name, Owner, Pos, {MovX, MovY},
       case (TTL - 1 =:= 0) of
         true  ->
           Owner ! {self_kill, Picture_Name},
+          picture_temporary(rand_image(), Pos, 1000),
           {stop, normal, normal};
         false ->
           {next_state, move, {Picture_Name, Owner, Pos, {NewMovX, NewMovY}, true, Mov_Delay, TTL-1}, 0}
       end
   end.
+
 
 handle_sync_event(Event, From, StateName, StateData) ->
   io:format("handle_event, unexpected event (~p), from: ~p.~n", [Event, From]),
@@ -135,3 +137,14 @@ update_pos({Pos_X, Pos_Y}, {Movment_X, Movment_Y})->
       end
   end,
   {{Pos_X + Direction_X, Pos_Y + Direction_Y}, {Direction_X, Direction_Y}}.
+
+picture_temporary(PictureType, Pos, Delay) ->
+  global:send(graphics, {insert_temporary, Pos, PictureType}),
+  receive after
+    Delay -> global:send(graphics, {kill_temporary, Pos, PictureType})
+  end.
+
+rand_image() ->
+  List =[?PAW,?KAPAW,?BOOM],
+  Index = rand:uniform(length(List)),
+  lists:nth(Index,List).
