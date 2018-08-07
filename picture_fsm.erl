@@ -6,7 +6,7 @@
 -include_lib("defines.hrl").
 
 %% API
--export([start/1, start_link/1]).
+-export([start/1]).
 
 %% gen_fsm callbacks
 -export([init/1, handle_info/3, handle_event/3, handle_sync_event/4, terminate/3, code_change/4]).
@@ -14,13 +14,20 @@
 
 % ------------------------------------------------ %
 
-start_link({Picture_Name, Owner, Mov_Delay, TTL}) ->
-  Data = {Picture_Name, Owner, Mov_Delay, TTL},
-  gen_fsm:start_link({global, Picture_Name}, ?MODULE, Data, []).
+start({Picture_Name, Owner, Pos, Mov, Collision, Delay, TTL}) ->
+  Data = {Picture_Name, Owner, Pos, Mov, Collision, Delay, TTL},
+  gen_fsm:start({global, Picture_Name}, ?MODULE, Data, []);
 
 start({Picture_Name, Owner, Mov_Delay, TTL}) ->
   Data = {Picture_Name, Owner, Mov_Delay, TTL},
   gen_fsm:start({global, Picture_Name}, ?MODULE, Data, []).
+
+init({Picture_Name, Owner, Pos, Mov, Collision, Delay, TTL}) ->
+  Owner ! {update_pid, Picture_Name, self()},
+  StateData = {Picture_Name, Owner, Pos, Mov, Collision, Delay, TTL},
+  io:format("New Owner ~p.~n", [Owner]),
+  io:format("Finished initilize picture process from another node.~n"),
+  {ok, move, StateData, 0};
 
 init({Picture_Name, Owner, Mov_Delay, TTL}) ->
   Owner ! {update_pid, Picture_Name, self()},
@@ -51,13 +58,19 @@ generate_position({generate_position, reject}, StateData) ->
 
 move(timeout, {Picture_Name, Owner, {PosX, PosY},{MovX, MovY}, _Collision, Mov_Delay, TTL}) ->
   {New_Pos, New_Mov} = update_pos({PosX, PosY},{MovX, MovY}),
-  global:send(graphics, {update_position, Picture_Name, New_Pos, New_Mov}),
+  %global:send(graphics, {update_position, Picture_Name, New_Pos, New_Mov}),
+  global:send(graphics, {update_position, Picture_Name, New_Pos, New_Mov, get_timestamp()}),
   Data = {Picture_Name, Owner, New_Pos, New_Mov, false, Mov_Delay, TTL},
   {next_state, move, Data, Mov_Delay};
 
 move({collision, New_Mov}, StateData) ->
   io:format("Picture process - collision event.~n"),
   {next_state, collision, {New_Mov, StateData}, 0};
+
+move({move_to_node, Node}, StateData) ->
+  {Picture_Name, _, Pos, Mov, Collision, Mov_Delay, TTL} = StateData,
+  gen_server:cast({global, Node}, {moving, {Picture_Name, Pos, Mov, Collision, Mov_Delay, TTL}}),
+  {stop, normal, normal};
 
 move(terminate, _State) ->
   {stop, normal, normal}.
@@ -75,8 +88,15 @@ collision(timeout, {{NewMovX, NewMovY}, {Picture_Name, Owner, Pos, {MovX, MovY},
         false ->
           {next_state, move, {Picture_Name, Owner, Pos, {NewMovX, NewMovY}, true, Mov_Delay, TTL-1}, 0}
       end
-  end.
+  end;
 
+collision({move_to_node, Node}, StateData) ->
+  {Picture_Name, _, Pos, Mov, Collision, Mov_Delay, TTL} = StateData,
+  gen_server:cast({global, Node}, {moving, {Picture_Name, Pos, Mov, Collision, Mov_Delay, TTL}}),
+  {stop, normal, normal};
+
+collision(terminate, _State) ->
+  {stop, normal, normal}.
 
 handle_sync_event(Event, From, StateName, StateData) ->
   io:format("handle_event, unexpected event (~p), from: ~p.~n", [Event, From]),
@@ -93,6 +113,10 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%%===================================================================
 %%%                 Messages from current node                     %%%
 %%%===================================================================
+
+handle_info(terminate, _StateName, _StateData) ->
+  io:format("handle_info: kill message.~n"),
+  {stop, normal, normal};
 
 handle_info(kill, _StateName, _StateData) ->
   io:format("handle_info: kill message.~n"),
@@ -148,3 +172,7 @@ rand_image() ->
   List =[?PAW,?KAPAW,?BOOM],
   Index = rand:uniform(length(List)),
   lists:nth(Index,List).
+
+get_timestamp() ->
+  {Mega, Sec, Micro} = os:timestamp(),
+  (Mega*1000000 + Sec)*1000 + round(Micro/1000).
