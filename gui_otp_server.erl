@@ -111,6 +111,10 @@ handle_info(Info, State) ->
 %%% Internal functions
 %%%===================================================================
 
+get_timestamp() ->
+  {Mega, Sec, Micro} = os:timestamp(),
+  (Mega*1000000 + Sec)*1000 + round(Micro/1000).
+
 % if there are K nodes (with the new one) and N pictures so each node need to have trace(N/K) pictures.
 % each node need to pass the new node Total/K - (current number of pictures) pictures.
 send_to_new_node_data([H|T], New_Node, Limit) ->
@@ -218,8 +222,8 @@ graphics_process(Frame) ->
   graphics_message(),
   graphics_update_messages(50),
   collision_detect(ets:first(data_base)),
-  show_graphics(Frame),
   ets_is_alive_scanner(ets:first(data_base), get_timestamp()),
+  show_graphics(Frame),
   graphics_process(Frame).
 
 show_graphics(Frame) ->
@@ -347,7 +351,3 @@ iterate_update_move([H1 | File_Names], [H2 | File_Names_Dir], Resources_Folder, 
 insert_picture(Picture_Name) ->
   Picture_Atom = list_to_atom(Picture_Name),
   gui_server ! {insert, Picture_Atom}.
-
-get_timestamp() ->
-  {Mega, Sec, Micro} = os:timestamp(),
-  (Mega*1000000 + Sec)*1000 + round(Micro/1000).
