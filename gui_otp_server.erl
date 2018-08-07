@@ -6,7 +6,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start/2, start_link/2, random_movement/0]).
+-export([start/0, start_link/0, random_movement/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -14,28 +14,38 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
-get_owner(Nodes) ->
-  [Node | Other_Nodes] = Nodes,
-  {Node, Other_Nodes ++ [Node]}.
 
-start_link(Gui_Server, Nodes) ->
-  My_Name = {global, Gui_Server},
+start_link() ->
+  My_Name = {global, gui_server},
   Option = [],
-  gen_server:start_link(My_Name, ?MODULE, Nodes, Option).
+  gen_server:start_link(My_Name, ?MODULE, [], Option).
 
-start(Gui_Server, Nodes) ->
-  My_Name = {global, Gui_Server},
+start() ->
+  My_Name = {global, gui_server},
   Option = [],
-  gen_server:start(My_Name, ?MODULE, Nodes, Option).
+  gen_server:start(My_Name, ?MODULE, [], Option).
 
-init(Nodes) ->
+init([]) ->
   register(gui_server, self()),
   ets:new(data_base, [named_table, public, set]),
   ets:new(wait_for_approve_data_base, [named_table, public, set]),
   ets:new(temporary_data_base, [named_table, public, set]),
-  global:register_name(graphics, spawn(fun() -> graphics_init() end)),
-  spawn_monitor(fun() -> init_scanner(?RECEIVED, ?RESOURCES) end),
-  {ok, Nodes}.
+  global:register_name(graphics, spawn_link(fun() -> graphics_init() end)),
+  spawn_link(fun() -> init_scanner(?RECEIVED, ?RESOURCES) end),
+  {ok, []}.
+
+handle_call({connect_node, New_Node}, _From, Nodes) ->
+  io:format("~p has been arived.~nNodes: ~p~n", [New_Node, Nodes]),
+  Replay = connected,
+  case Nodes of
+    [] ->
+      spawn_link(fun() -> send_to_new_node_data(empty, New_Node, ets:first(wait_for_approve_data_base)) end),
+      {reply, Replay, [New_Node]};
+    _  ->
+      [_, _, _, _, _, _, _, {_, Size}, _, _, _, _, _] = ets:info(data_base),
+      spawn_link(fun() -> send_to_new_node_data(Nodes, New_Node, trunc(Size/(length(Nodes)+1))) end),
+      {reply, Replay, Nodes ++ [New_Node]}
+  end;
 
 handle_call(_Request, _From, State) ->
   io:format("gui_otp_server not support call functions.~n"),
@@ -53,6 +63,11 @@ code_change(_OldVsn, State, _Extra) ->
 %%%                     Messages from Nodes                        %%%
 %%%===================================================================
 
+handle_cast({insert, Picture_Name, Node}, Nodes) ->
+  ets:insert(wait_for_approve_data_base, {Picture_Name, Node}),
+  gen_server:cast({global, Node}, {insert, Picture_Name, ?PIC_PROCESS_DELAY, ?TTL}),
+  {noreply, Nodes};
+
 handle_cast({generate_position, Picture_Name, PosX, PosY}, Nodes) ->
   global:send(graphics, {generate_position, Picture_Name, PosX, PosY}),
   {noreply, Nodes};
@@ -63,30 +78,63 @@ handle_cast({self_kill, Picture_Name}, Nodes) ->
   {noreply, Nodes};
 
 handle_cast({self_kill, node, _Node}, Nodes) ->
-  %TODO - node terminate
+  %TODO - node termination
   {noreply, Nodes};
 
 handle_cast(Request, State) ->
-  io:format("gui_otp_server - handle_cast: unknown message: ~p~n",[Request]),
+  io:format("unknown request: ~p~n",[Request]),
   {noreply, State}.
 
 %%%===================================================================
 %%%                  Messages from local process                   %%%
 %%%===================================================================
 
-handle_info({insert, Picture_Name, Delay, TTL}, Nodes) ->
-  {Node, New_Nodes_State} = get_owner(Nodes),
-  ets:insert(wait_for_approve_data_base, {Picture_Name, Node}),
-  gen_server:cast({global, Node}, {insert, Picture_Name, Delay, TTL}),
-  {noreply, New_Nodes_State};
+handle_info({insert, Picture_Name}, Nodes) ->
+  Data = get_owner(Nodes),
+  case Data of
+    [] ->
+      io:format("there is no nodes for pictures.~n"),
+      ets:insert(wait_for_approve_data_base, {Picture_Name, no_owner}),
+      {noreply, Nodes};
+    _  ->
+      {Node, New_Nodes_State} = Data,
+      ets:insert(wait_for_approve_data_base, {Picture_Name, Node}),
+      gen_server:cast({global, Node}, {insert, Picture_Name, ?PIC_PROCESS_DELAY, ?TTL}),
+      {noreply, New_Nodes_State}
+  end;
 
 handle_info(Info, State) ->
-  io:format("gui_otp_server - handle_info: unknown message: ~p~n",[Info]),
+  io:format("unknown message: ~p~n",[Info]),
   {noreply, State}.
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+% if there are K nodes (with the new one) and N pictures so each node need to have trace(N/K) pictures.
+% each node need to pass the new node Total/K - (current number of pictures) pictures.
+send_to_new_node_data([H|T], New_Node, Limit) ->
+  gen_server:cast({global, H}, {send_pictures_to_node, New_Node, Limit}),
+  send_to_new_node_data(T, New_Node, Limit);
+send_to_new_node_data([], _, _) -> connected;
+
+% first node that enter to the server.
+send_to_new_node_data(empty, _, '$end_of_table') -> connected;
+send_to_new_node_data(empty, New_Node, Line) ->
+  [{Picture_Name, _}] = ets:lookup(wait_for_approve_data_base, Line),
+  ets:update_element(wait_for_approve_data_base, Picture_Name, {2, New_Node}),
+  gen_server:cast({global, New_Node}, {insert, Picture_Name, ?PIC_PROCESS_DELAY, ?TTL}),
+  send_to_new_node_data(empty, New_Node, ets:next(wait_for_approve_data_base, Line)).
+
+get_random_owner([]) -> [];
+get_random_owner(Nodes) ->
+  Index = rand:uniform(length(Nodes)),
+  lists:nth(Index,Nodes).
+
+get_owner([]) -> [];
+get_owner(Nodes) ->
+  [Node | Other_Nodes] = Nodes,
+  {Node, Other_Nodes ++ [Node]}.
 
 random_movement() ->
   R = rand:uniform(),
@@ -95,15 +143,14 @@ random_movement() ->
   end .
 
 generate_position_check('$end_of_table', Picture_Name, PosX, PosY)  ->
-  % TODO - check if NODE is the right one
   [{_, Node}] = ets:lookup(wait_for_approve_data_base, Picture_Name),
   ets:delete(wait_for_approve_data_base, Picture_Name),
   {MovX, MovY} = {random_movement(), random_movement()},
-  ets:insert(data_base, {Picture_Name, Node, {PosX, PosY}, {MovX, MovY}}),
+  ets:insert(data_base, {Picture_Name, Node, {PosX, PosY}, {MovX, MovY}, get_timestamp()}),
   gen_fsm:send_event({global, Picture_Name}, {generate_position, approved, {PosX, PosY}, {MovX, MovY}});
 
 generate_position_check(Line, Picture_Name, NewPosX, NewPosY) ->
-  [{_, _, {PosX, PosY}, _}] = ets:lookup(data_base, Line),
+  [{_, _, {PosX, PosY}, _, _}] = ets:lookup(data_base, Line),
   case ((abs(PosY - NewPosY) =< ?ImgEdge) and (abs(PosX - NewPosX) =< ?ImgEdge)) of
     true  ->
       gen_fsm:send_event({global, Picture_Name}, {generate_position, reject});
@@ -122,9 +169,9 @@ graphics_init() ->
 graphics_update_messages(0) -> 0;
 graphics_update_messages(N) ->
   receive
-    {update_position, Picture_Name, Pos, Mov} ->
+    {update_position, Picture_Name, Pos, Mov, Time_Stamp} ->
       try
-        ets:update_element(data_base, Picture_Name, [{3, Pos}, {4, Mov}])
+        ets:update_element(data_base, Picture_Name, [{3, Pos}, {4, Mov}, {5, Time_Stamp}])
       catch
         _-> io:format("caught!~n")
       end
@@ -133,21 +180,31 @@ graphics_update_messages(N) ->
 
 graphics_message()  ->
   receive
+    {update_Owner, Picture_Name, Node} ->
+      ets:update_element(data_base, Picture_Name, {2, Node});
+
     {self_kill, Picture_Name} ->
       ets:delete(data_base, Picture_Name),
       graphics_message();
 
-    {kill_temporary, Pos, PictureType} ->
+    {kill_temporary, Pos, _PictureType} ->
       ets:delete(temporary_data_base, Pos),
       graphics_message();
 
     {generate_position, Picture_Name, PosX, PosY} ->
-      generate_position_check(ets:first(data_base), Picture_Name, PosX, PosY),
+      Data = ets:lookup(data_base, Picture_Name),
+      case Data of
+        [] -> generate_position_check(ets:first(data_base), Picture_Name, PosX, PosY);
+        [{Picture_Name, _, Pos, Mov, _}] ->
+          ets:delete(wait_for_approve_data_base, Picture_Name),
+          ets:update_element(data_base, Picture_Name, {5, get_timestamp()}),
+          gen_fsm:send_event({global, Picture_Name}, {generate_position, approved, Pos, Mov})
+      end,
       graphics_message();
 
     {insert_picture, {Picture_Name, Owner, {PosX, PosY}, {MovX, MovY}}} ->
       io:format("Picture insert at position {~p, ~p}.~n", [PosX, PosY]),
-      ets:insert(data_base, {Picture_Name, Owner, {PosX, PosY}, {MovX, MovY}}),
+      ets:insert(data_base, {Picture_Name, Owner, {PosX, PosY}, {MovX, MovY}, get_timestamp()}),
       gen_server:cast({global, Owner}, {generate_position, approved, Picture_Name, PosX, PosY}),
       graphics_message();
 
@@ -161,12 +218,8 @@ graphics_process(Frame) ->
   graphics_message(),
   graphics_update_messages(50),
   collision_detect(ets:first(data_base)),
-  %ClientDC = wxClientDC:new(Frame),
-  %BufferDC = wxBufferedDC:new(ClientDC),
-  %show_temporary_graphics(ets:first(temporary_data_base), BufferDC),
-  %wxBufferedDC:destroy(BufferDC),
-  %wxClientDC:destroy(ClientDC),
   show_graphics(Frame),
+  ets_is_alive_scanner(ets:first(data_base), get_timestamp()),
   graphics_process(Frame).
 
 show_graphics(Frame) ->
@@ -182,7 +235,7 @@ show_graphics(Frame) ->
 
 show_graphics('$end_of_table', _) -> ok;
 show_graphics(Picture_Name, BufferDC) ->
-  [{Name, _, Pos, _}] = ets:lookup(data_base, Picture_Name),
+  [{Name, _, Pos, _, _}] = ets:lookup(data_base, Picture_Name),
   Image = wxBitmap:new(atom_to_list(Name)),
   wxDC:drawBitmap(BufferDC, Image, Pos),
   wxBitmap:destroy(Image),
@@ -213,8 +266,8 @@ collision_detect(Picture_Line, Picture_To_Campre) ->
     false ->
       collision_detect(Picture_Line, ets:next(data_base, Picture_To_Campre));
     true  ->
-      [{Picture_Name, _, _, OldMov}] = Picture_Line,
-      [{Picture_Name_Cmp, _, _, OldCmpMov}]= Picture_Line_Campre,
+      [{Picture_Name, _, _, OldMov, _}] = Picture_Line,
+      [{Picture_Name_Cmp, _, _, OldCmpMov, _}]= Picture_Line_Campre,
       gen_fsm:send_event({global, Picture_Name}, {collision, Mov}),
       delete_messages_from_queue(Picture_Name, OldMov),
       gen_fsm:send_event({global, Picture_Name_Cmp}, {collision, MovCmp}),
@@ -222,13 +275,13 @@ collision_detect(Picture_Line, Picture_To_Campre) ->
   end.
 
 collision_check(Line1, Line2) ->
-  [{_, _, {X1,Y1}, {MovX1, MovY1}}] = Line1,
-  [{_, _, {X2,Y2}, {MovX2, MovY2}}] = Line2,
+  [{_, _, {X1,Y1}, {MovX1, MovY1}, _}] = Line1,
+  [{_, _, {X2,Y2}, {MovX2, MovY2}, _}] = Line2,
   Ydis = abs(Y1-Y2),
   Xdis = abs(X1-X2),
   case ((Xdis =< ?ImgEdge) and (Ydis =< ?ImgEdge)) of
     true  ->
-      io:format("server colision~n"),
+      io:format("server detect colision~n"),
       case (Ydis < Xdis) of
         true  -> {true, {-1 * MovX1, MovY1}, {-1 * MovX2, MovY2}}; % side collision
         false -> {true, {MovX1, -1 * MovY1}, {MovX2, -1 * MovY2}}  % horizontal collision
@@ -245,10 +298,26 @@ delete_messages_from_queue(Picture_Name, Mov)->
     0-> ok
   end.
 
+ets_is_alive_scanner('$end_of_table', _) -> ok;
+ets_is_alive_scanner(Line, Time) ->
+  [{Picture_Name, Owner, Pos, _, Time_Stamp}] = ets:lookup(data_base, Line),
+  case ((Time - Time_Stamp > 2000) and (Picture_Name /= ?BOOM) and (Picture_Name /= ?KAPAW) and (Picture_Name /= ?PAW)) of
+    true  ->
+      New_Owner = get_random_owner(nodes()),
+      gen_server:cast({global, Owner}, {kill, Picture_Name}),
+      ets:update_element(data_base, Picture_Name, [{2, New_Owner}, {5, get_timestamp()}]),
+      gen_server:cast({global, gui_server}, {insert, Picture_Name, New_Owner}),
+      io:format("picture at ~p stoped~n", [Pos]);
+    false ->
+      ok
+  end,
+  ets_is_alive_scanner(ets:next(data_base, Line), Time).
+
+
 % ------------------------------------------------- %
 
 init_scanner(Received_Folder, Resources_Folder) ->
-  io:format("init scanner procces.~n"),
+  io:format("init file scanner procces at server.~n"),
   file_scanner(Resources_Folder, Received_Folder, true),
   file_scanner(Received_Folder, Resources_Folder, false).
 
@@ -266,13 +335,19 @@ iterate_update_move([], [], _,_) -> ok;
 iterate_update_move([H1 | File_Names], [H2 | File_Names_Dir], Resources_Folder, Debug)->
   file:copy(H2, Resources_Folder ++ "/" ++ H1),
   case Debug of
-    false -> insert_picture(Resources_Folder ++ "/" ++ H1);
-    true  -> ok
+    false ->
+      io:format("file scanner found new picture.~n"),
+      insert_picture(Resources_Folder ++ "/" ++ H1);
+    true  ->
+      ok
   end,
   file:delete(H2),
   iterate_update_move(File_Names, File_Names_Dir, Resources_Folder,Debug).
 
 insert_picture(Picture_Name) ->
   Picture_Atom = list_to_atom(Picture_Name),
-  gui_server ! {insert, Picture_Atom, ?PIC_PROCESS_DELAY, ?TTL}.
+  gui_server ! {insert, Picture_Atom}.
 
+get_timestamp() ->
+  {Mega, Sec, Micro} = os:timestamp(),
+  (Mega*1000000 + Sec)*1000 + round(Micro/1000).
