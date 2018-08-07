@@ -50,10 +50,10 @@ code_change(_OldVsn, State, _Extra) ->
 
 % create new picture process.
 handle_cast({insert, Picture_Name, Delay, TTL}, State) ->
-  io:format("handle_cast: insert picture event.~n"),
   ets:insert(data_base, {Picture_Name, empty_pid}),
   Owner = self(),
   spawn(fun() -> picture_fsm:start({Picture_Name, Owner, Delay, TTL}) end),
+  io:format("handle_cast: insert picture event.~n"),
   {noreply, State};
 
 handle_cast({send_pictures_to_node, Node, Limit}, State) ->
