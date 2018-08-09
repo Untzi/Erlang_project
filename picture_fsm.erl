@@ -10,7 +10,7 @@
 
 %% gen_fsm callbacks
 -export([init/1, handle_info/3, handle_event/3, handle_sync_event/4, terminate/3, code_change/4]).
--export([move/2, collision/2, generate_position/2, set_position/1]).
+-export([move/2, collision/2, generate_position/2, set_position/1, graphics_turn_down/2]).
 
 % ------------------------------------------------ %
 
@@ -56,12 +56,25 @@ generate_position({generate_position, reject}, StateData) ->
 
 % ------------------------------------------------ %
 
+graphics_turn_down(timeout, {Data, update_position, Picture_Name, New_Pos, New_Mov}) ->
+  try
+    global:send(graphics, {update_position, Picture_Name, New_Pos, New_Mov, get_timestamp()})
+  of
+    _-> {next_state, move, Data, ?PIC_PROCESS_DELAY}
+  catch
+    _:_ -> {next_state, graphics_turn_down, {Data, update_position, Picture_Name, New_Pos, New_Mov}, ?PIC_PROCESS_DELAY}
+  end.
+
 move(timeout, {Picture_Name, Owner, {PosX, PosY},{MovX, MovY}, _Collision, Mov_Delay, TTL}) ->
   {New_Pos, New_Mov} = update_pos({PosX, PosY},{MovX, MovY}),
-  %global:send(graphics, {update_position, Picture_Name, New_Pos, New_Mov}),
-  global:send(graphics, {update_position, Picture_Name, New_Pos, New_Mov, get_timestamp()}),
   Data = {Picture_Name, Owner, New_Pos, New_Mov, false, Mov_Delay, TTL},
-  {next_state, move, Data, Mov_Delay};
+  try
+    global:send(graphics, {update_position, Picture_Name, New_Pos, New_Mov, get_timestamp()})
+  of
+    _-> {next_state, move, Data, Mov_Delay}
+  catch
+    _:_ -> {next_state, graphics_turn_down, {Data, update_position, Picture_Name, New_Pos, New_Mov}, Mov_Delay}
+  end;
 
 move({collision, New_Mov}, StateData) ->
   io:format("Picture process - collision event.~n"),
@@ -163,9 +176,21 @@ update_pos({Pos_X, Pos_Y}, {Movment_X, Movment_Y})->
   {{Pos_X + Direction_X, Pos_Y + Direction_Y}, {Direction_X, Direction_Y}}.
 
 picture_temporary(PictureType, Pos, Delay) ->
-  global:send(graphics, {insert_temporary, Pos, PictureType}),
-  receive after
-    Delay -> global:send(graphics, {kill_temporary, Pos, PictureType})
+  try global:send(graphics, {insert_temporary, Pos, PictureType}) of
+    _ ->
+      receive
+      after Delay
+        -> try global:send(graphics, {kill_temporary, Pos, PictureType}) of
+             _ -> ok
+           catch
+             _:_ -> ok
+           end
+      end
+  catch
+    _:_ ->
+      receive after
+        Delay -> picture_temporary(PictureType, Pos, Delay)
+      end
   end.
 
 rand_image() ->
