@@ -28,7 +28,8 @@ start(Gui_Server) ->
 init(Gui_Server) ->
   ets:new(data_base, [named_table, public, set]),
   net_kernel:connect(Gui_Server),
-  try_to_connect(),
+  try_to_connect(Gui_Server),
+  spawn_link(fun() -> keep_connection(Gui_Server) end),
   {ok, [], infinity}.
 
 handle_call(_Request, _From, State) ->
@@ -108,18 +109,36 @@ handle_info(Info, State) ->
 %%% Internal functions
 %%%===================================================================
 
-try_to_connect() ->
-  try
-    Return = gen_server:call({global, gui_server}, {connect_node, node()}),
-    io:format("Return: ~p~n",[Return])
-  catch
-    _:_ -> try_to_connect()
+keep_connection(Gui_Server) ->
+  receive after 500 ->
+    case lists:member(Gui_Server, nodes()) of
+      true  -> ok;
+      false -> try_to_connect(Gui_Server)
+    end
+  end,
+  keep_connection(Gui_Server).
+
+try_to_connect(Gui_Server) ->
+  net_kernel:connect(Gui_Server),
+  receive after 1000 ->
+    try
+      Return = gen_server:call({global, gui_server}, {connect_node, node()}),
+      io:format("Return: ~p~n",[Return])
+    catch
+     _:_ -> try_to_connect(Gui_Server)
+    end
   end.
 
 send_pictures(_,    Size, Limit) when Size =< Limit -> done;
 send_pictures(Node, Size, Limit) ->
   [{Picture_Name, PID}] = ets:lookup(data_base, ets:first(data_base)),
-  gen_fsm:send_event(PID, {move_to_node, Node}),
-  global:send(graphics, {update_Owner, Picture_Name, Node}),
+  try
+    gen_fsm:send_event(PID, {move_to_node, Node}),
+    global:send(graphics, {update_Owner, Picture_Name, Node})
+  of
+    _-> io:format("sent picture to another node~n")
+    catch
+      _:_ -> ok
+  end,
   ets:delete(data_base, Picture_Name),
   send_pictures(Node, Size - 1, Limit).
