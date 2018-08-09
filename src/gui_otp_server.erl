@@ -26,6 +26,7 @@ start() ->
   gen_server:start(My_Name, ?MODULE, [], Option).
 
 init([]) ->
+  io:format("Started GUI OTP Server.~n"),
   register(gui_server, self()),
   ets:new(data_base, [named_table, public, set]),
   ets:new(wait_for_approve_data_base, [named_table, public, set]),
