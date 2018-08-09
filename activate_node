@@ -1,0 +1,18 @@
+clear
+erl -make
+erl -name node1@127.0.0.1 -setcookie chen
+cover:compile_directory(). 
+picture_otp_server:start('gui_server@127.0.0.1').
+
+
+clear
+erl -make
+erl -name node2@127.0.0.1 -setcookie chen
+cover:compile_directory(). 
+picture_otp_server:start('gui_server@127.0.0.1').
+
+clear
+erl -make
+erl -name node3@127.0.0.1 -setcookie chen
+cover:compile_directory(). 
+picture_otp_server:start('gui_server@127.0.0.1').
