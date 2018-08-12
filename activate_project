@@ -1,0 +1,27 @@
+#######################################
+#### GUI_SERVER WITH SUPERVISOR:  ####
+#######################################
+erl -name gui_server@127.0.0.1 -setcookie cookie
+server_governor:start_link_shell().
+
+############################
+### WITHOUT SUPERVISOR: ###
+############################
+erl -name gui_server@127.0.0.1 -setcookie cookie
+gui_otp_server:start_link().
+
+-----------------------------------------------------------
+
+#################################
+#### NODE WITH SUPERVISOR:  ####
+#################################
+erl -name node2@127.0.0.1 -setcookie cookie
+picture_OTP_governor:start_link_shell('gui_server@127.0.0.1').
+
+#################################
+### NODE WITHOUT SUPERVISOR: ###
+#################################
+erl -name node@127.0.0.1 -setcookie cookie
+picture_otp_server:start('gui_server@127.0.0.1').
+
+
