@@ -1,10 +1,8 @@
-
 -module(client).
 -author("Chen_Shay").
 -include_lib("defines.hrl").
 %% API
 -export([client_upload/0]).
-
 
 client_upload()->
   Wx = wx:new(),

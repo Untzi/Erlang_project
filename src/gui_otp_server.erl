@@ -27,16 +27,17 @@ start() ->
 
 init([]) ->
   io:format("Started GUI OTP Server.~n"),
+  cover:compile_directory(),
   register(gui_server, self()),
   ets:new(data_base, [named_table, public, set]),
-  ets:new(wait_for_approve_data_base, [named_table, public, set]),
   ets:new(temporary_data_base, [named_table, public, set]),
+  ets:new(wait_for_approve_data_base, [named_table, public, set]),
   global:register_name(graphics, spawn_link(fun() -> graphics_init() end)),
   spawn_link(fun() -> init_scanner(?RECEIVED, ?RESOURCES) end),
   {ok, []}.
 
 handle_call({connect_node, New_Node}, _From, Nodes) ->
-  io:format("some node has been arived. All Nodes: ~p~n", [[New_Node] ++ Nodes]),
+  io:format("Some node has been arived. All Nodes: ~p~n", [[New_Node] ++ Nodes]),
   Replay = connected,
   case Nodes of
     [] ->
@@ -49,15 +50,15 @@ handle_call({connect_node, New_Node}, _From, Nodes) ->
   end;
 
 handle_call(_Request, _From, State) ->
-  io:format("gui_otp_server not support call functions.~n"),
+  io:format("GUI OTP Server not support call functions.~n"),
   {reply, ok, State}.
 
 terminate(Reason, State) ->
-  io:format("gui_otp_server server shuting down.~nThe Reason was: ~p.~nServer state was: ~p~n.",[Reason, State]),
+  io:format("GUI OTP Server shuting down.~nServer state was: ~p.~nThe Reason was: ~p.~n",[Reason, State]),
   ok.
 
 code_change(_OldVsn, State, _Extra) ->
-  io:format("gui_otp_server not support code changing operattion.~n"),
+  io:format("GUI OTP Server not support code changing operattion.~n"),
   {ok, State}.
 
 %%%===================================================================
@@ -65,6 +66,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 
 handle_cast({insert, Picture_Name, Node}, Nodes) ->
+  io:format("GUI OTP Server received a picture from listener.~n"),
   ets:insert(wait_for_approve_data_base, {Picture_Name, Node}),
   gen_server:cast({global, Node}, {insert, Picture_Name, ?PIC_PROCESS_DELAY, ?TTL}),
   {noreply, Nodes};
@@ -74,12 +76,12 @@ handle_cast({generate_position, Picture_Name, PosX, PosY}, Nodes) ->
   {noreply, Nodes};
 
 handle_cast({self_kill, Picture_Name}, Nodes) ->
-  io:format("server - {self_kill, Picture_Name}~n"),
+  io:format("Picture from some node closed normally (TTL = 0).~n"),
   global:send(graphics, {self_kill, Picture_Name}),
   {noreply, Nodes};
 
 handle_cast(Request, State) ->
-  io:format("unknown request: ~p~n",[Request]),
+  io:format("GUI OTP Server received unknown cast message:~n~p.~n",[Request]),
   {noreply, State}.
 
 %%%===================================================================
@@ -87,19 +89,21 @@ handle_cast(Request, State) ->
 %%%===================================================================
 
 handle_info({insert, Picture_Name}, _Nodes) ->
+  io:format("New picture has arrived from listener - trying to send it to some available node."),
   Node = get_random_owner(nodes()),
   case Node of
     [] ->
-      io:format("there is no nodes for pictures.~n"),
+      io:format("There are no available nodes for pictures to run.~n"),
       ets:insert(wait_for_approve_data_base, {Picture_Name, no_owner});
     _  ->
       ets:insert(wait_for_approve_data_base, {Picture_Name, Node}),
+      io:format("Picture were delivered to some node.~n"),
       gen_server:cast({global, Node}, {insert, Picture_Name, ?PIC_PROCESS_DELAY, ?TTL})
   end,
   {noreply, nodes()};
 
 handle_info(Info, State) ->
-  io:format("unknown message: ~p~n",[Info]),
+  io:format("GUI OTP Server received unknown info message:~n~p~n",[Info]),
   {noreply, State}.
 
 %%%===================================================================
@@ -141,7 +145,8 @@ generate_position_check('$end_of_table', Picture_Name, PosX, PosY)  ->
   ets:delete(wait_for_approve_data_base, Picture_Name),
   {MovX, MovY} = {random_movement(), random_movement()},
   ets:insert(data_base, {Picture_Name, Node, {PosX, PosY}, {MovX, MovY}, get_timestamp()}),
-  gen_fsm:send_event({global, Picture_Name}, {generate_position, approved, {PosX, PosY}, {MovX, MovY}});
+  gen_fsm:send_event({global, Picture_Name}, {generate_position, approved, {PosX, PosY}, {MovX, MovY}}),
+  io:format("Picture position has been approved by graphics procces.~n");
 
 generate_position_check(Line, Picture_Name, NewPosX, NewPosY) ->
   [{_, _, {PosX, PosY}, _, _}] = ets:lookup(data_base, Line),
@@ -187,8 +192,11 @@ graphics_message()  ->
     {generate_position, Picture_Name, PosX, PosY} ->
       Data = ets:lookup(data_base, Picture_Name),
       case Data of
-        [] -> generate_position_check(ets:first(data_base), Picture_Name, PosX, PosY);
+        [] ->
+          io:format("Graphics procces check if picturs starting position is legal.~n"),
+          generate_position_check(ets:first(data_base), Picture_Name, PosX, PosY);
         [{Picture_Name, _, Pos, Mov, _}] ->
+          io:format("Graphics procces sending to a moving picture procces its data.~n"),
           ets:delete(wait_for_approve_data_base, Picture_Name),
           ets:update_element(data_base, Picture_Name, {5, get_timestamp()}),
           gen_fsm:send_event({global, Picture_Name}, {generate_position, approved, Pos, Mov})
@@ -211,7 +219,6 @@ graphics_process(Frame) ->
   graphics_message(),
   graphics_update_messages(50),
   collision_detect_and_is_alive(ets:first(data_base), get_timestamp()),
-  %ets_is_alive_scanner(ets:first(data_base), get_timestamp()),
   show_graphics(Frame),
   graphics_process(Frame).
 
@@ -251,11 +258,10 @@ collision_detect_and_is_alive(Picture, T) ->
   spawn_link(fun() -> collision_detect_and_is_alive(Next_Picture, T) end),
 
   case ets_is_alive_scanner(Picture, T) of
-    delete -> ets:delete(data_base, Picture);
-    update -> ignore;
+    delete -> ets:delete(data_base, Picture); % this is temporary picture.
+    update -> ignore; % current picture moved to a new node.
     _      -> collision_detect(Line, Next_Picture)
-  end. %,  collision_detect_and_is_alive(Next_Picture, T).
-
+  end.
 
 collision_detect(_, '$end_of_table') -> ok;
 collision_detect(Picture_Line, Picture_To_Campre) ->
@@ -280,7 +286,7 @@ collision_check(Line1, Line2) ->
   Xdis = abs(X1-X2),
   case ((Xdis =< ?ImgEdge) and (Ydis =< ?ImgEdge)) of
     true  ->
-      io:format("server detect colision~n"),
+      io:format("Server detect colision between two pictures proccess.~n"),
       case (Ydis < Xdis) of
         true  -> {true, {-1 * MovX1, MovY1}, {-1 * MovX2, MovY2}}; % side collision
         false -> {true, {MovX1, -1 * MovY1}, {MovX2, -1 * MovY2}}  % horizontal collision
@@ -309,40 +315,17 @@ ets_is_alive_scanner(Picture, Time) ->
           gen_server:cast({global, Owner}, {kill, Picture_Name}),
           ets:update_element(data_base, Picture_Name, [{2, New_Owner}, {5, get_timestamp()}]),
           gen_server:cast({global, gui_server}, {insert, Picture_Name, New_Owner}),
-          io:format("picture at ~p stoped~n", [Pos]),
+          io:format("Picture at position ~p stoped. Moving it to a node node.~n", [Pos]),
           update
       end;
     false ->
       none
   end.
 
-%%ets_is_alive_scanner('$end_of_table', _) -> ok;
-%%ets_is_alive_scanner(Line, Time) ->
-%%  [{Picture_Name, Owner, Pos, _, Time_Stamp}] = ets:lookup(data_base, Line),
-%%  Next_Line = ets:next(data_base, Line),
-%%  T = Time - Time_Stamp,
-%%  case (T > 800) of
-%%    true  ->
-%%      case ((Picture_Name /= ?BOOM) and (Picture_Name /= ?KAPAW) and (Picture_Name /= ?PAW) and (T > 2000)) of
-%%        true -> ets:delete(data_base, Picture_Name);
-%%        false ->
-%%          New_Owner = get_random_owner(nodes()),
-%%          gen_server:cast({global, Owner}, {kill, Picture_Name}),
-%%          ets:update_element(data_base, Picture_Name, [{2, New_Owner}, {5, get_timestamp()}]),
-%%          gen_server:cast({global, gui_server}, {insert, Picture_Name, New_Owner}),
-%%          io:format("picture at ~p stoped~n", [Pos])
-%%      end;
-%%    false ->
-%%      ok
-%%  end,
-%%  ets_is_alive_scanner(Next_Line, Time).
-
-
 % ------------------------------------------------- %
 
 init_scanner(Received_Folder, Resources_Folder) ->
-  io:format("init file scanner procces at server.~n"),
-  %%file_scanner(Resources_Folder, Received_Folder, true),
+  io:format("Init file scanner procces at server.~n"),
   file_scanner(Received_Folder, Resources_Folder, false).
 
 file_scanner(Received_Folder, Resources_Folder,Debug)->
@@ -360,7 +343,7 @@ iterate_update_move([H1 | File_Names], [H2 | File_Names_Dir], Resources_Folder, 
   file:copy(H2, Resources_Folder ++ "/" ++ H1),
   case Debug of
     false ->
-      io:format("file scanner found new picture.~n"),
+      io:format("File scanner found new picture.~n"),
       insert_picture(Resources_Folder ++ "/" ++ H1);
     true  ->
       ok

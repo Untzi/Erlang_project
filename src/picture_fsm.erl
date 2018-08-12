@@ -25,7 +25,6 @@ start({Picture_Name, Owner, Mov_Delay, TTL}) ->
 init({Picture_Name, Owner, Pos, Mov, Collision, Delay, TTL}) ->
   Owner ! {update_pid, Picture_Name, self()},
   StateData = {Picture_Name, Owner, Pos, Mov, Collision, Delay, TTL},
-  io:format("New Owner ~p.~n", [Owner]),
   io:format("Finished initilize picture process from another node.~n"),
   {ok, move, StateData, 0};
 
@@ -39,19 +38,19 @@ init({Picture_Name, Owner, Mov_Delay, TTL}) ->
 % ------------------------------------------------ %
 
 generate_position(timeout, StateData) ->
-  io:format("picture_fsm - generate_position~n"),
   {Picture_Name, _, _, _, _} = StateData,
   {PosX, PosY} = {set_position(?WIDTH), set_position(?HEIGHT)},
+  io:format("Picture_fsm, pid: ~p, wating for starting position approval from server.~n", [self()]),
   gen_server:cast({global, gui_server}, {generate_position, Picture_Name, PosX, PosY}),
   {next_state, generate_position, StateData};
 
 generate_position({generate_position, approved, Pos, Mov}, StateData) ->
-  io:format("picture_fsm - approved~n"),
+  io:format("Picture_fsm, pid: ~p, starting position approved.~n", [self()]),
   {Picture_Name, Owner, Collision, Mov_Delay, TTL} = StateData,
   {next_state, move, {Picture_Name, Owner, Pos, Mov, Collision, Mov_Delay, TTL}, Mov_Delay};
 
 generate_position({generate_position, reject}, StateData) ->
-  io:format("picture_fsm - reject~n"),
+  io:format("Picture_fsm, pid: ~p, starting position were reject.~n", [self()]),
   {next_state, generate_position, StateData, 0}.
 
 % ------------------------------------------------ %
@@ -77,11 +76,12 @@ move(timeout, {Picture_Name, Owner, {PosX, PosY},{MovX, MovY}, _Collision, Mov_D
   end;
 
 move({collision, New_Mov}, StateData) ->
-  io:format("Picture process - collision event.~n"),
+  io:format("Picture process notified about collision event.~n"),
   {next_state, collision, {New_Mov, StateData}, 0};
 
 move({move_to_node, Node}, StateData) ->
   {Picture_Name, _, Pos, Mov, Collision, Mov_Delay, TTL} = StateData,
+  io:format("Picture process, pid: ~p, moving to another node.~n", [self()]),
   gen_server:cast({global, Node}, {moving, {Picture_Name, Pos, Mov, Collision, Mov_Delay, TTL}}),
   {stop, normal, normal};
 
@@ -96,6 +96,7 @@ collision(timeout, {{NewMovX, NewMovY}, {Picture_Name, Owner, Pos, {MovX, MovY},
       case (TTL - 1 =:= 0) of
         true  ->
           Owner ! {self_kill, Picture_Name},
+          io:format("Picture process, pid: ~p, eliminates (TTL = 0). boom\\paw\\kapaw event :-O.~n", [self()]),
           picture_temporary(rand_image(), Pos, 1000),
           {stop, normal, normal};
         false ->
@@ -105,6 +106,7 @@ collision(timeout, {{NewMovX, NewMovY}, {Picture_Name, Owner, Pos, {MovX, MovY},
 
 collision({move_to_node, Node}, StateData) ->
   {Picture_Name, _, Pos, Mov, Collision, Mov_Delay, TTL} = StateData,
+  io:format("Picture process, pid: ~p, moving to another node.~n", [self()]),
   gen_server:cast({global, Node}, {moving, {Picture_Name, Pos, Mov, Collision, Mov_Delay, TTL}}),
   {stop, normal, normal};
 
@@ -112,15 +114,15 @@ collision(terminate, _State) ->
   {stop, normal, normal}.
 
 handle_sync_event(Event, From, StateName, StateData) ->
-  io:format("handle_event, unexpected event (~p), from: ~p.~n", [Event, From]),
+  io:format("Picture_fsm received unexpected sync event:~n~p.~nfrom: ~p.~n", [Event, From]),
   {next_state, StateName, StateData}.
 
 handle_event(Event, StateName, StateData) ->
-  io:format("handle_event, unexpected event: ~p.~n", [Event]),
+  io:format("Picture_fsm received unexpected event:~n~p.~n", [Event]),
   {next_state, StateName, StateData}.
 
 code_change(_OldVsn, StateName, StateData, _Extra) ->
-  io:format("picture_fsm not support code changing.~n"),
+  io:format("Picture_fsm not support code changing.~n"),
   {ok, StateName, StateData}.
 
 %%%===================================================================
@@ -128,11 +130,13 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%%===================================================================
 
 handle_info(terminate, _StateName, _StateData) ->
-  io:format("handle_info: kill message.~n"),
+  io:format("Picture received terminate message... bye bye picture... :(~n"),
+  node() ! {self_kill_pid, self()},
   {stop, normal, normal};
 
 handle_info(kill, _StateName, _StateData) ->
-  io:format("handle_info: kill message.~n"),
+  io:format("Picture received kill message... bye bye picture... :(~n"),
+  node() ! {self_kill_pid, self()},
   {stop, normal, normal};
 
 handle_info(Msg, StateName, StateData) ->
@@ -152,7 +156,7 @@ set_position(Length) ->
 
 update_pos({Pos_X, Pos_Y}, {Movment_X, Movment_Y})->
   %%lower bound
-  if (Pos_Y  + 1.5 * ?ImgEdge) >= ?HEIGHT ->
+  if (Pos_Y  + ?ImgEdge) >= ?HEIGHT -> %(Pos_Y  + 1.5 * ?ImgEdge) >= ?HEIGHT ->
     Direction_Y = -1 * Movment_Y;
     true ->
       %%upper bound

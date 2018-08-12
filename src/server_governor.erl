@@ -1,4 +1,4 @@
--module(governer).
+-module(server_governor).
 -author("Chen_Shay").
 
 -behavior(supervisor).

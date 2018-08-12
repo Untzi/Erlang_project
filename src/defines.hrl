@@ -11,8 +11,8 @@
 -define(STEP, 1).
 -define(ImgEdge, 75).
 -define(RADIUS,  25).
--define(WIDTH,  1500 ).
--define(HEIGHT, 1200).
+-define(WIDTH,  1100).
+-define(HEIGHT, 900).
 -define(TTL, 3).
 
 -define(FILE_SCANNER_DELAY, 1000).
