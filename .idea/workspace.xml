@@ -1,7 +1,83 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="e03131eb-92cc-41d8-a2fd-0e18b19e00db" name="Default" comment="" />
+    <list default="true" id="e03131eb-92cc-41d8-a2fd-0e18b19e00db" name="Default" comment="">
+      <change beforePath="$PROJECT_DIR$/pictures/035821e9fb0b973a562b124b7715c178.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/1504a0ac8b0506cab56a1bedf0492196.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/15459e151aa9499d5d6e3b5e3edea831.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/168748f58082457f7a359bdab1f39782.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/567974bf8e22228dca680a92ae75ef1e.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/58434431241350111e85308597457f0d.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/7644af90439347949cafaff579fe3357.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/79270712e76ef2c2f1bfd53af9c62586.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/9193e2909e6ef0e7277bc06fc5a9a5d8.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/9238de2d87ce02b5827baf9b5eb0e0d1.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/9349003830538be89f60aa68dbc6838a.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/96425d1a0b5fa929fcd482318f8c8d0e.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/97274333df80e1548c351132e8a7e22a.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/a5bd98d935564416fd6267aad0d5c63c.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/aad33a97a82a6d18efe38cac10844bc8.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/ab55a19eaf5f29f63918ccbd376a42aa.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/abc2b9c2b90519f6503925de8814ab8d.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/ac8238e655d9b3aa80d5e492765f155e.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/acdafc7b08ac0cb787d9c6a8982f9fe8.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/ad5be8b5585a96398c4e18d90b8ef738.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/b621bcf0e9febb69ac31b714999673c8.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/b97b797dfc4732841a4d00ed17290577.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/bafa4fe83a15abbd994a07a4ef96363f.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/c4f8da052ae6f54107f9befdee3f81c5.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/cad3e916f788a41a2cdf85bacdaf71fd.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/d353e4d511eb0a3cd1a7d66d1d0ed314.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/d75908e1b79172f379cfd0076642da9d.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/d7c251d8b78fb634ccbc1da91855dc3a.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/dd8693bf81d2edcf93a85581decee027.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/df5b10f8b02680dfc2a7b7c0628604de.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/e036a209119dfd8887446358d575dfff.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/e235da7e84581dfefb696e34a20919f5.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/e236548a53a91e4b673bbd8e196859e9.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/e61f951ae560e387da679d415b8f7df9.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/e9c80a34e02b6288a8df2e31c878ad0c.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/ea24784a34e2d7e789e1902a3efd997f.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/ef0ce8f3ec9769d1eb70e0cff003978a.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/f6ed7f8dc6045c0cd123d5c7040c4ba0.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/fc1bf53560637959a50bc6b061a886dd.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pictures/ffe25a73809e4d7008dca86467c06f51.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/received/4ad4ecc113079099f6431d67b20c9423.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/081b250eb485f81412ca610680e2e712.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/0a82e786084a0f5572d3db7835b3f176 .png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/13a6b6cfa9e14bf7408547c317c44ba3.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/1502f15cec88019514179393dd705533.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/163d691d1cef9123ca04a3e3a721949a.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/17c1924c99998d416333247c915b1439.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/1bd340bae559fd06fd128027ab4b86ea.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/1ecba2b9163a95725cc88b4087d43b24 .png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/2b52184616d225ba24e46cbb86f5d8a0.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/2b9228241bef85b72f433ab3483d9b42.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/398db398e0c930e1dd4d00b06af48ba4.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/4cf265d4de595b424a794bb997ac2345.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/59f323f043837ef5c9d2a055647420bd.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/5d4f09cb7dee363a28c3c96b72bb2898 .png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/5fc789a2dd9ac462f9587a496bdda2b5.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/63f6875ce7bd769347878389ea3f1cd0.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/6cbfa1ff68a0da628e2b138cb66fe41b.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/6f1a0d3e48e579d47f235b0d5b48dd40.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/7a1b8bb72566cfe310f4f01b633dbf45.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/7a7ecf60f36a27d082e92d8e0f75789f.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/7bd4cbb4789b140bf0076e768ca21595.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/7d867068950df74602fa8845ffc26bf9.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/7f99b1512fbfc250ea2308022ef8ccb0.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/825c4b47c0b4830e625079a787405cfb.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/892a7e40cd0f437d09a4f154b8e0dd52.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/8d03260ba37fc3c362ae5c3e4af76dce.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/8d55bf03b3ea101efc0e744a4ea78e94.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/9cc63f5811cbe79fa3b6f66516be5eca.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/9ddb84e6690d6b81bd3ec08fe52f23a0.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/content_Listener.beam" beforeDir="false" afterPath="$PROJECT_DIR$/src/content_Listener.beam" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/gui_otp_server.beam" beforeDir="false" afterPath="$PROJECT_DIR$/src/gui_otp_server.beam" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/gui_otp_server.erl" beforeDir="false" afterPath="$PROJECT_DIR$/src/gui_otp_server.erl" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/picture_otp_server.beam" beforeDir="false" afterPath="$PROJECT_DIR$/src/picture_otp_server.beam" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/picture_otp_server.erl" beforeDir="false" afterPath="$PROJECT_DIR$/src/picture_otp_server.erl" afterDir="false" />
+    </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -10,17 +86,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="FileEditorManager">
-    <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file leaf-file-name="gui_server.erl" pinned="false" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/gui_server.erl">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="48">
-              <caret line="2" selection-start-line="2" selection-end-line="2" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-    </leaf>
+    <leaf SIDE_TABS_SIZE_LIMIT_KEY="300" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -108,18 +174,18 @@
     <configuration />
   </component>
   <component name="ToolWindowManager">
-    <frame x="65" y="-4" width="1855" height="954" extended-state="6" />
+    <frame x="65" y="-4" width="1855" height="1084" extended-state="6" />
     <layout>
       <window_info id="Designer" order="2" />
       <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.18814017" />
       <window_info anchor="bottom" id="TODO" order="6" />
       <window_info anchor="right" id="Palette&#9;" order="3" />
       <window_info anchor="bottom" id="Event Log" order="7" side_tool="true" />
-      <window_info anchor="bottom" id="Run" order="2" />
       <window_info anchor="bottom" id="Version Control" order="7" />
+      <window_info anchor="bottom" id="Run" order="2" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
-      <window_info anchor="bottom" id="Debug" order="3" weight="0.4" />
       <window_info id="Favorites" order="2" side_tool="true" />
+      <window_info anchor="bottom" id="Debug" order="3" weight="0.4" />
       <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
       <window_info anchor="right" id="Commander" internal_type="SLIDING" order="0" type="SLIDING" weight="0.4" />
@@ -133,20 +199,8 @@
     <option name="myLimit" value="2678400000" />
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/gui_server.erl">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="48">
-          <caret line="2" lean-forward="true" selection-start-line="2" selection-end-line="2" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/gui_server.erl">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="48">
-          <caret line="2" selection-start-line="2" selection-end-line="2" />
-        </state>
-      </provider>
-    </entry>
+    <entry file="file://$PROJECT_DIR$/gui_server.erl" />
+    <entry file="file://$PROJECT_DIR$/gui_server.erl" />
   </component>
   <component name="masterDetails">
     <states>

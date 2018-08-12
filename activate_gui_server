@@ -1,3 +1,0 @@
-erl -name gui_server@127.0.0.1 -setcookie chen
-cover:compile_directory(). 
-gui_otp_server:start_link().

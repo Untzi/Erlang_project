@@ -2,12 +2,11 @@
 import socket 
 import sys 
 
-def clientSend(filePath,ip):
+def clientSend(filePath,ip,port):
 	filePath=filePath.to_string()
 	ip=ip.to_string()
 	s = socket.socket(socket.AF_INET,socket.SOCK_STREAM)            
 	host = socket.gethostname()   
-	port = 6020
 	s.connect((ip, port))
 	f = open(filePath,'rb')
 	l = f.read(1024)

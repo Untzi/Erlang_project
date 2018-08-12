@@ -8,10 +8,17 @@ import thread
 import hashlib
 
 def listen_for_image(path,id,serv_ip,path_final):
-    port = 6020
+    port = 6000
     s = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
     host = socket.gethostname()
-    s.bind((serv_ip.to_string(), port))            # change to ('', port) if outside of network
+    while True:
+        try:
+            s.bind((serv_ip.to_string(), port))
+            break
+        except:
+            port+=1
+            continue
+    print 'bounded on port: ' + str(port)
     s.listen(10)
     while 1:
 #accept connections from outside
