@@ -31,6 +31,8 @@ init(Gui_Server) ->
   net_kernel:connect(Gui_Server),
   try_to_connect(Gui_Server),
   spawn_link(fun() -> keep_connection(Gui_Server) end),
+  {_, IO} = file:open(node(), write),
+  spawn_link(fun() -> statistics(IO, 3000) end),
   {ok, [], infinity}.
 
 handle_call(_Request, _From, State) ->
@@ -54,7 +56,7 @@ code_change(_OldVsn, State, _Extra) ->
 handle_cast({insert, Picture_Name, Delay, TTL}, State) ->
   ets:insert(data_base, {Picture_Name, empty_pid}),
   Owner = self(),
-  spawn(fun() -> picture_fsm:start({Picture_Name, Owner, Delay, TTL}) end),
+  spawn_monitor(fun() -> picture_fsm:start({Picture_Name, Owner, Delay, TTL}) end),
   io:format("New picture has arrived from the server - creat a new picture_fsm process.~n"),
   {noreply, State};
 
@@ -157,4 +159,16 @@ find_pid(Picture_Name, PID) ->
   case (PID_Tmp =:= PID) of
     true  -> gen_server:cast({global, gui_server}, {self_kill, Picture_Name});
     false -> find_pid(ets:next(data_base, Picture_Name), PID)
+  end.
+
+statistics(IO, 0) ->
+  io:format("statistics close~n"),
+  file:close(IO);
+statistics(IO, N) ->
+  receive
+  after
+    200 ->
+      [_, _, _, _, _, _, _, {_, Size}, _, _, _, _, _] = ets:info(data_base),
+      io:fwrite(IO, "~p~n",[Size]),
+      statistics(IO, N-1)
   end.

@@ -13,7 +13,7 @@
 -define(RADIUS,  25).
 -define(WIDTH,  1100).
 -define(HEIGHT, 900).
--define(TTL, 3).
+-define(TTL, 5).
 
 -define(FILE_SCANNER_DELAY, 1000).
 -define(DRAW_DELAY, 0).

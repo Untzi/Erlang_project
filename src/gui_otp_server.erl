@@ -32,6 +32,8 @@ init([]) ->
   ets:new(data_base, [named_table, public, set]),
   ets:new(temporary_data_base, [named_table, public, set]),
   ets:new(wait_for_approve_data_base, [named_table, public, set]),
+  {_, IO} = file:open(node(), write),
+  spawn_link(fun() -> statistics(IO, 3000) end),
   global:register_name(graphics, spawn_link(fun() -> graphics_init() end)),
   spawn_link(fun() -> init_scanner(?RECEIVED, ?RESOURCES) end),
   {ok, []}.
@@ -217,7 +219,8 @@ graphics_message()  ->
 
 graphics_process(Frame) ->
   graphics_message(),
-  graphics_update_messages(50),
+  [_, _, _, _, _, _, _, {_, Size}, _, _, _, _, _] = ets:info(data_base),
+  graphics_update_messages(Size * 5),
   collision_detect_and_is_alive(ets:first(data_base), get_timestamp()),
   show_graphics(Frame),
   graphics_process(Frame).
@@ -306,7 +309,7 @@ delete_messages_from_queue(Picture_Name, Mov)->
 ets_is_alive_scanner(Picture, Time) ->
   [{Picture_Name, Owner, Pos, _, Time_Stamp}] = ets:lookup(data_base, Picture),
   T = Time - Time_Stamp,
-  case (T > 2000) of
+  case (T > 1000) of
     true  ->
       case ((Picture_Name /= ?BOOM) and (Picture_Name /= ?KAPAW) and (Picture_Name /= ?PAW)) of
         false  -> delete;
@@ -354,3 +357,15 @@ iterate_update_move([H1 | File_Names], [H2 | File_Names_Dir], Resources_Folder, 
 insert_picture(Picture_Name) ->
   Picture_Atom = list_to_atom(Picture_Name),
   gui_server ! {insert, Picture_Atom}.
+
+statistics(IO, 0) ->
+  io:format("statistics close~n"),
+  file:close(IO);
+statistics(IO, N) ->
+  receive
+  after
+    200 ->
+      [_, _, _, _, _, _, _, {_, Size}, _, _, _, _, _] = ets:info(data_base),
+      io:fwrite(IO, "~p~n",[Size]),
+      statistics(IO, N-1)
+  end.
